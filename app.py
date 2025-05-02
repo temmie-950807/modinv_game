@@ -11,6 +11,15 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = secrets.token_hex(16)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+# game mode
+
+DIFFICULTY_BOUNDS = {
+    'easy':    50,          # a,b < 50
+    'medium':  1000,        # a,b < 1 000
+    'hard':    48763    # a,b < 1 000 000 000
+}
+GAME_MODES = {'first', 'speed'}          # first = 搶快；speed = 比速度
+
 # 遊戲房間數據
 rooms = {}
 
@@ -49,13 +58,14 @@ def mod_inverse(a, m):
         _, x, _ = extended_gcd(a, m)
         return (x % m + m) % m  # 確保結果為正數
 
-def generate_question():
+def generate_question(difficulty: str):
     """生成一個有關模反元素的問題"""
-    primes = get_primes(11, 50)
+    bound = DIFFICULTY_BOUNDS[difficulty]
+    primes = get_primes(11, bound - 1)
     p = random.choice(primes)
     
     # 選擇 a，確保 a 和 p 互質 (這裡小於 p 的數一定與 p 互質，因為 p 是質數)
-    a = random.randint(10, p - 1)
+    a = random.randint(2, p - 1)
     
     answer = mod_inverse(a, p)
     return {
@@ -71,11 +81,19 @@ def index():
     session.clear()
     return render_template('index.html')
 
+# 修改 create_room 函數，添加 question_count 參數
 @app.route('/create_room', methods=['POST'])
 def create_room():
     """創建新的遊戲房間"""
     username = request.form.get('username')
     room_id = request.form.get('room_id')
+    difficulty = request.form.get('difficulty', 'easy')
+    game_mode = request.form.get('game_mode', 'first')
+    question_count = int(request.form.get('question_count', '7'))  # 預設為7題
+    
+    # 檢查用戶名長度
+    if len(username) > 10:
+        return jsonify({'error': '用戶名最多10個字符'})
     
     if not room_id:
         # 創建一個6位數的隨機房間ID
@@ -95,21 +113,34 @@ def create_room():
         'question_number': 0,
         'answers': {},
         'game_started': False,
-        'question_timer': None
+        'question_timer': None,
+        'difficulty': difficulty,
+        'game_mode': game_mode,
+        'question_count': question_count,  # 新增問題數量設定
+        'correct_order': [],        # 比速度用
+        'first_correct_done': False # 搶快用
     }
     
     return jsonify({'room_id': room_id})
 
+# 修改 join_existing_room 函數，檢查用戶名長度
 @app.route('/join_room', methods=['POST'])
 def join_existing_room():
     """加入現有遊戲房間"""
     username = request.form.get('username')
     room_id = request.form.get('room_id')
     
+    # 檢查用戶名長度
+    if len(username) > 10:
+        return jsonify({'error': '用戶名最多10個字符'})
+    
     if not room_id in rooms:
         return jsonify({'error': '找不到此房間'})
     
-    if len(rooms[room_id]['players']) >= 2:
+    if rooms[room_id]["game_started"] == True:
+        return jsonify({'error': '遊戲已經開始，無法加入'})
+    
+    if len(rooms[room_id]['players']) >= 10:
         return jsonify({'error': '房間已滿'})
     
     session['username'] = username
@@ -145,6 +176,7 @@ def leave_current_room():
                 socketio.emit('room_status', {
                     'players': rooms[room_id]['players'],
                     'scores': rooms[room_id]['scores'],
+                    'ready': rooms[room_id]['ready'],
                     'game_started': rooms[room_id]['game_started']
                 }, room=room_id)
         
@@ -168,6 +200,7 @@ def handle_connect():
             emit('room_status', {
                 'players': rooms[room_id]['players'],
                 'scores': rooms[room_id]['scores'],
+                'ready':   rooms[room_id]['ready'],
                 'game_started': rooms[room_id]['game_started'],
                 'room_id': room_id  # 確保房間ID被傳回
             }, room=room_id)
@@ -195,6 +228,7 @@ def handle_disconnect():
                     emit('room_status', {
                         'players': rooms[room_id]['players'],
                         'scores': rooms[room_id]['scores'],
+                        'ready':   rooms[room_id]['ready'],
                         'game_started': rooms[room_id]['game_started']
                     }, room=room_id)
             
@@ -211,9 +245,14 @@ def handle_player_ready():
     rooms[room_id]['ready'][username] = True
     
     # 檢查是否所有玩家都準備好了
-    all_ready = len(rooms[room_id]['ready']) == len(rooms[room_id]['players']) and len(rooms[room_id]['players']) == 2
+    all_ready = len(rooms[room_id]['ready']) == len(rooms[room_id]['players']) and len(rooms[room_id]['players'])
     
     if all_ready and not rooms[room_id]['game_started']:
+        emit('player_ready_status', {
+            'username': username,
+            'ready_count': len(rooms[room_id]['ready']),
+            'total_players': len(rooms[room_id]['players'])
+        }, room=room_id)
         rooms[room_id]['game_started'] = True
         start_game(room_id)
     else:
@@ -223,6 +262,7 @@ def handle_player_ready():
             'total_players': len(rooms[room_id]['players'])
         }, room=room_id)
 
+# 修改 start_game 函數，加入倒數計時功能
 def start_game(room_id):
     """開始遊戲"""
     if room_id not in rooms:
@@ -232,126 +272,52 @@ def start_game(room_id):
     rooms[room_id]['scores'] = {player: 0 for player in rooms[room_id]['players']}
     rooms[room_id]['answers'] = {}
     
+    # 發送開始遊戲倒數
+    emit('game_countdown', {'countdown': 5}, room=room_id)
+    
+    # 等待5秒後開始第一題
+    socketio.sleep(5)
+    
     emit('game_started', room=room_id)
     next_question(room_id)
 
+# 修改 next_question 函數，檢查題目數量
 def next_question(room_id):
     """生成下一個問題"""
     if room_id not in rooms:
         return
     
-    if rooms[room_id]['question_number'] > 7:
-        # 遊戲結束
+    if rooms[room_id]['question_number'] > rooms[room_id]['question_count']:
         end_game(room_id)
         return
     
-    question = generate_question()
+    # 發送下一題倒數
+    if rooms[room_id]['question_number'] > 1:
+        emit('next_question_countdown', {'countdown': 3}, room=room_id)
+        socketio.sleep(3)
+    
+    rooms[room_id]['timer_abort'] = False
+    rooms[room_id]['first_correct_done'] = False # ★ 每題重置
+    question = generate_question(rooms[room_id]['difficulty'])
     rooms[room_id]['current_question'] = question
     rooms[room_id]['answers'] = {}
+    rooms[room_id]['correct_order'] = []     # 比速度用
     
-    # 設置100秒計時器
+    # 設置 15 秒計時器
+    rooms[room_id]['timer_abort'] = False
     rooms[room_id]['question_timer'] = socketio.start_background_task(
         question_timeout, room_id, rooms[room_id]['question_number']
     )
     
     emit('new_question', {
         'question_number': rooms[room_id]['question_number'],
+        'question_count': rooms[room_id]['question_count'],  # 添加總題數
         'p': question['p'],
         'a': question['a'],
-        'time_limit': 100  # 100秒限時
+        'time_limit': 15,  # 15 秒限時
+        'game_mode': rooms[room_id]['game_mode']
     }, room=room_id)
 
-def question_timeout(room_id, question_number):
-    """問題計時器，100秒後自動進入下一題"""
-    socketio.sleep(100)
-    
-    if room_id not in rooms:
-        return
-    
-    # 確保我們仍然在同一個問題
-    if rooms[room_id]['question_number'] == question_number:
-        # 通知所有玩家時間到
-        socketio.emit('time_up', {
-            'correct_answer': rooms[room_id]['current_question']['answer']
-        }, room=room_id)
-        
-        # 延遲一下再進入下一題
-        socketio.sleep(3)
-        
-        if room_id in rooms:  # 再次確認房間仍然存在
-            rooms[room_id]['question_number'] += 1
-            next_question(room_id)
-
-@socketio.on('submit_answer')
-def handle_answer(data):
-    """處理玩家提交的答案"""
-    username = session.get('username')
-    room_id = session.get('room_id')
-    answer = data.get('answer')
-    
-    if not (username and room_id and room_id in rooms):
-        return
-    
-    # 檢查遊戲是否進行中且該玩家還沒有回答
-    if rooms[room_id]['game_started'] and username not in rooms[room_id]['answers']:
-        current_question = rooms[room_id]['current_question']
-        
-        # 檢查是否有任何玩家已經回答正確
-        any_correct = any(
-            int(ans) == current_question['answer'] 
-            for player, ans in rooms[room_id]['answers'].items()
-        )
-        
-        # 如果已經有人回答正確，不再接受新答案
-        if any_correct:
-            emit('answer_rejected', {
-                'message': '已有玩家回答正確'
-            })
-            return
-        
-        # 記錄答案
-        rooms[room_id]['answers'][username] = answer
-        
-        # 檢查答案是否正確
-        correct = int(answer) == current_question['answer']
-        
-        # 計算答題時間
-        time_taken = time.time() - current_question['time_started']
-        
-        # 判斷是否為第一個回答正確的玩家
-        first_correct = correct and len([u for u, a in rooms[room_id]['answers'].items() 
-                                        if int(a) == current_question['answer']]) == 1
-        
-        if first_correct:
-            rooms[room_id]['scores'][username] += 1
-            # 如果有人答對，立即通知所有玩家
-            emit('someone_answered_correctly', {'username': username}, room=room_id)
-        
-        # 通知該玩家答題結果
-        emit('answer_result', {
-            'correct': correct,
-            'first_correct': first_correct,
-            'correct_answer': current_question['answer'],
-            'time_taken': round(time_taken, 2)
-        })
-        
-        # 通知所有玩家有人答題
-        emit('player_answered', {
-            'username': username,
-            'answered_count': len(rooms[room_id]['answers']),
-            'total_players': len(rooms[room_id]['players']),
-            'correct': correct
-        }, room=room_id)
-        
-        # 如果所有玩家都已答題或有人答對，進入下一題
-        if len(rooms[room_id]['answers']) == len(rooms[room_id]['players']) or first_correct:
-            # 更新分數
-            emit('update_scores', {'scores': rooms[room_id]['scores']}, room=room_id)
-            
-            # 延遲一下再進入下一題，讓玩家有時間看結果
-            rooms[room_id]['question_number'] += 1
-            socketio.sleep(3)
-            next_question(room_id)
 
 def end_game(room_id):
     """結束遊戲並計算最終結果"""
@@ -386,6 +352,103 @@ def end_game(room_id):
     rooms[room_id]['current_question'] = None
     rooms[room_id]['question_number'] = 0
 
+def question_timeout(room_id, question_number):
+    """問題計時器，15 秒後自動進入下一題"""
+    socketio.sleep(15)
+    
+    if room_id not in rooms:
+        return
+    
+    # 確保我們仍然在同一個問題
+    if rooms[room_id]['question_number'] == question_number:
+        # 通知所有玩家時間到
+        socketio.emit('time_up', {
+            'correct_answer': rooms[room_id]['current_question']['answer']
+        }, room=room_id)
+        
+        # 延遲一下再進入下一題
+        socketio.sleep(3)
+        
+        if room_id in rooms:  # 再次確認房間仍然存在
+            rooms[room_id]['question_number'] += 1
+            next_question(room_id)
+
+@socketio.on('submit_answer')
+def handle_answer(data):
+    username = session.get('username')
+    room_id  = session.get('room_id')
+    raw_ans  = data.get('answer', '').strip()
+
+    # -------- 基本檢查 --------
+    if not (username and room_id and room_id in rooms):
+        return
+    if not raw_ans.isdigit():
+        emit('answer_rejected', {'message': '答案必須是整數'})
+        return
+    answer = int(raw_ans)
+
+    room = rooms[room_id]
+    q    = room['current_question']
+    mode = room['game_mode']
+
+    # 已經回答過就忽略
+    if username in room['answers']:
+        return
+
+    # -------- 搶快規則：第一個正確的人以後全部拒絕 --------
+    if mode == 'first' and room['first_correct_done']:
+        emit('answer_rejected', {'message': '已有玩家答對搶走分數'}, to=request.sid)
+        return
+
+    # -------- 記錄答案 --------
+    room['answers'][username] = answer
+    correct = answer == q['answer']
+    time_taken = round(time.time() - q['time_started'], 2)
+    emit('player_answered', {'username': username}, room=room_id, include_self=False)
+
+    points = 0
+    if correct:
+        if mode == 'first':
+            if not room['first_correct_done']:
+                points = 1
+                room['scores'][username] += points
+                room['first_correct_done'] = True
+        else:  # speed
+            rank = len(room['correct_order'])
+            points = max(1, 3 - rank)      # 3/2/1/1…
+            room['correct_order'].append(username)
+            room['scores'][username] += points
+    socketio.emit('update_scores', {'scores': room['scores']}, room=room_id)
+
+    emit('answer_result', {
+        'username': username,
+        'correct': correct,
+        'points': points,
+        'time_taken': time_taken,
+        'correct_answer': q['answer']
+    }, to=request.sid)
+
+    if correct and points > 0:
+        emit('someone_answered_correctly', {
+            'username': username,
+            'mode': mode                  # ★ 告知前端目前模式
+        }, room=room_id)
+    else:
+        emit('someone_answered_incorrectly', {
+            'username': username,
+            'mode': mode                  # ★ 告知前端目前模式
+        }, room=room_id)
+
+    # 下一題條件
+    everyone_done = len(room['answers']) == len(room['players'])
+    if (
+        (mode == 'first' and room['first_correct_done'])  # 搶快：有人搶答成功
+        or everyone_done                                  # 速度：都答完
+    ):
+        room['question_number'] += 1
+        socketio.sleep(3)
+        next_question(room_id)
+
 @app.route('/game')
 def game():
     """遊戲頁面"""
@@ -407,76 +470,6 @@ def get_room_id():
         return jsonify({'room_id': session['room_id']})
     return jsonify({'error': '未找到房間ID'})
 
-@socketio.on('submit_answer')
-def handle_answer(data):
-    """處理玩家提交的答案"""
-    username = session.get('username')
-    room_id = session.get('room_id')
-    answer = data.get('answer')
-    
-    if not (username and room_id and room_id in rooms):
-        return
-    
-    # 檢查遊戲是否進行中且該玩家還沒有回答
-    if rooms[room_id]['game_started'] and username not in rooms[room_id]['answers']:
-        current_question = rooms[room_id]['current_question']
-        
-        # 檢查是否有任何玩家已經回答正確
-        any_correct = any(
-            int(ans) == current_question['answer'] 
-            for player, ans in rooms[room_id]['answers'].items()
-        )
-        
-        # 如果已經有人回答正確，不再接受新答案
-        if any_correct:
-            emit('answer_rejected', {
-                'message': '已有玩家回答正確'
-            })
-            return
-        
-        # 記錄答案
-        rooms[room_id]['answers'][username] = answer
-        
-        # 檢查答案是否正確
-        correct = int(answer) == current_question['answer']
-        
-        # 計算答題時間
-        time_taken = time.time() - current_question['time_started']
-        
-        # 判斷是否為第一個回答正確的玩家
-        first_correct = correct and len([u for u, a in rooms[room_id]['answers'].items() 
-                                        if int(a) == current_question['answer']]) == 1
-        
-        if first_correct:
-            rooms[room_id]['scores'][username] += 1
-            # 如果有人答對，立即通知所有玩家
-            emit('someone_answered_correctly', {'username': username}, room=room_id)
-        
-        # 通知該玩家答題結果
-        emit('answer_result', {
-            'correct': correct,
-            'first_correct': first_correct,
-            'correct_answer': current_question['answer'],
-            'time_taken': round(time_taken, 2)
-        })
-        
-        # 通知所有玩家有人答題
-        emit('player_answered', {
-            'username': username,
-            'answered_count': len(rooms[room_id]['answers']),
-            'total_players': len(rooms[room_id]['players']),
-            'correct': correct
-        }, room=room_id)
-        
-        # 如果所有玩家都已答題或有人答對，進入下一題
-        if len(rooms[room_id]['answers']) == len(rooms[room_id]['players']) or first_correct:
-            # 更新分數
-            emit('update_scores', {'scores': rooms[room_id]['scores']}, room=room_id)
-            
-            # 延遲一下再進入下一題，讓玩家有時間看結果
-            rooms[room_id]['question_number'] += 1
-            socketio.sleep(3)
-            next_question(room_id)
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=8000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)

@@ -38,6 +38,26 @@
             border-radius: 4px;
             box-sizing: border-box;
         }
+        select, input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-options {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .form-options .form-group {
+            flex: 1;
+        }
         button {
             background-color: #4CAF50;
             color: white;
@@ -92,6 +112,18 @@
             border-radius: 4px;
             margin-bottom: 20px;
         }
+        .game-settings {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .char-counter {
+            font-size: 12px;
+            color: #666;
+            text-align: right;
+            margin-top: 2px;
+        }
     </style>
 </head>
 <body>
@@ -101,9 +133,9 @@
         <div class="game-description">
             <h3>遊戲說明</h3>
             <p>這是一個關於模反元素的雙人競賽遊戲！</p>
-            <p>每回合系統會隨機生成一個質數 p（範圍：2-50）和一個數字 a（範圍：0-(p-1)）。</p>
+            <p>每回合系統會隨機生成一個質數 p 和一個數字 a。</p>
             <p>你的任務是計算出 a 在模 p 下的模反元素，即找到一個整數 x 使得 a·x ≡ 1 (mod p)。</p>
-            <p>每局遊戲包含 7 道題目，答對且最快的玩家獲得該回合的分數！</p>
+            <p>答對且最快的玩家獲得該回合的分數！</p>
         </div>
         
         <div class="tab">
@@ -113,21 +145,57 @@
         
         <div id="CreateRoom" class="tabcontent" style="display: block;">
             <div class="form-group">
-                <label for="create-username">你的名稱:</label>
-                <input type="text" id="create-username" placeholder="輸入你的名稱">
+                <label for="create-username">你的名稱 (最多10個字):</label>
+                <input type="text" id="create-username" placeholder="輸入你的名稱" maxlength="10">
             </div>
             <div class="form-group">
                 <label for="create-room-id">房間號碼 (選填，留空將隨機生成):</label>
                 <input type="text" id="create-room-id" placeholder="輸入房間號碼或留空">
             </div>
+            <div class="form-options">
+                <div class="form-group">
+                    <label for="create-difficulty">難度:</label>
+                    <select id="create-difficulty">
+                        <option value="easy">簡單 (a,b &lt; 50)</option>
+                        <option value="medium">中等 (a,b &lt; 1000)</option>
+                        <option value="hard">困難 (a,b &lt; 48763)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="create-mode">遊戲模式:</label>
+                    <select id="create-mode">
+                        <option value="first">搶快 (單次僅一人作答)</option>
+                        <option value="speed">比速度 (皆可作答，先答得高分)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-options">
+                <div class="form-group">
+                    <label for="create-question-count">題目數量:</label>
+                    <select id="create-question-count">
+                        <option value="7">7 題</option>
+                        <option value="15">15 題</option>
+                        <option value="30">30 題</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="create-mode">遊戲時間:</label>
+                    <select id="create-mode">
+                        <option value="first">15 秒</option>
+                        <option value="speed">30 秒</option>
+                        <option value="speed">100 秒</option>
+                    </select>
+                </div>
+            </div>
+            
             <button onclick="createRoom()">創建房間</button>
             <div id="create-error" class="error"></div>
         </div>
         
         <div id="JoinRoom" class="tabcontent">
             <div class="form-group">
-                <label for="join-username">你的名稱:</label>
-                <input type="text" id="join-username" placeholder="輸入你的名稱">
+                <label for="join-username">你的名稱 (最多10個字):</label>
+                <input type="text" id="join-username" placeholder="輸入你的名稱" maxlength="10">
             </div>
             <div class="form-group">
                 <label for="join-room-id">房間號碼:</label>
@@ -139,6 +207,12 @@
     </div>
 
     <script>
+        function updateCharCount(inputId, counterId) {
+            const input = document.getElementById(inputId);
+            const counter = document.getElementById(counterId);
+            counter.textContent = `${input.value.length}/10`;
+        }
+
         function openTab(evt, tabName) {
             var i, tabcontent, tablinks;
             tabcontent = document.getElementsByClassName("tabcontent");
@@ -154,6 +228,13 @@
         }
 
         function createRoom() {
+            const difficulty = document.getElementById('create-difficulty').value;
+            const mode = document.getElementById('create-mode').value;
+            const questionCount = document.getElementById('create-question-count').value;
+            const formData = new FormData();
+            formData.append('difficulty', difficulty);
+            formData.append('game_mode', mode);
+            formData.append('question_count', questionCount);
             const username = document.getElementById('create-username').value.trim();
             const roomId = document.getElementById('create-room-id').value.trim();
             const errorElement = document.getElementById('create-error');
@@ -163,10 +244,16 @@
                 return;
             }
             
-            const formData = new FormData();
             formData.append('username', username);
             if (roomId) {
                 formData.append('room_id', roomId);
+            }
+
+            // 新增檢查房間 ID 格式
+            const roomIdPattern = /^[a-zA-Z0-9]+$/; // 僅允許大小寫英文與數字
+            if (roomId && !roomIdPattern.test(roomId)) {
+                errorElement.textContent = "僅能輸入大小寫英文或數字";
+                return;
             }
             
             fetch('/create_room', {
@@ -197,8 +284,20 @@
                 return;
             }
             
+            if (username.length > 10) {
+                errorElement.textContent = "名稱不能超過10個字";
+                return;
+            }
+            
             if (!roomId) {
                 errorElement.textContent = "請輸入房間號碼";
+                return;
+            }
+
+            // 檢查房間 ID 格式
+            const roomIdPattern = /^[a-zA-Z0-9]+$/; // 僅允許大小寫英文與數字
+            if (!roomIdPattern.test(roomId)) {
+                errorElement.textContent = "僅能輸入大小寫英文或數字";
                 return;
             }
             
@@ -215,6 +314,7 @@
                 if (data.error) {
                     errorElement.textContent = data.error;
                 } else {
+                    localStorage.setItem('username', username);
                     window.location.href = '/game';
                 }
             })
@@ -223,6 +323,12 @@
                 console.error('Error:', error);
             });
         }
+
+        // 初始化字符計數器
+        window.onload = function() {
+            updateCharCount('create-username', 'create-char-count');
+            updateCharCount('join-username', 'join-char-count');
+        };
     </script>
 </body>
 </html>
