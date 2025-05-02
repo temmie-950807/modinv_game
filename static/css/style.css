@@ -1,0 +1,36 @@
+body {
+    font-family: Arial, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f5f5f5;
+}
+
+h1, h2 {
+    text-align: center;
+    color: #333;
+}
+
+.container {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* rating */
+.username {
+    color: black; /* 預設顏色 */
+}
+
+.username .specialist {
+    color: #03A89E; /* rating >= 1400 時的顏色 */
+}
+
+.username .expert {
+    color: blue; /* rating >= 1600 時的顏色 */
+}
+
+.username .candidate_master {
+    color: #a0a; /* rating >= 1900 時的顏色 */
+}
