@@ -1,17 +1,24 @@
 # app.py
+import os, json, time, random, math, secrets
+from datetime import timedelta
 from flask import Flask, render_template, request, session, jsonify, redirect, url_for
-from flask_socketio import SocketIO, join_room, leave_room, emit
-import random
-import math
-import secrets
-import os
-import time
+from flask_socketio import SocketIO, emit, join_room, leave_room
+from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = secrets.token_hex(16)
+app.config['SECRET_KEY'] = os.environ.get("SECRET_KEY", "replace‑me‑with‑a‑real‑secret")
 socketio = SocketIO(app, cors_allowed_origins="*")
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 
 # game mode
+
+@app.before_request
+def refresh_permanent_session():
+    if 'username' in session:
+        session.permanent = True
+
+ACCOUNTS_FILE = os.path.join(os.path.dirname(__file__), 'accounts.json')
 
 DIFFICULTY_BOUNDS = {
     'easy':    50,          # a,b < 50
@@ -22,6 +29,139 @@ GAME_MODES = {'first', 'speed'}          # first = 搶快；speed = 比速度
 
 # 遊戲房間數據
 rooms = {}
+
+def load_accounts():
+    if not os.path.exists(ACCOUNTS_FILE):
+        with open(ACCOUNTS_FILE,'w',encoding='utf-8') as f:
+            json.dump([], f)
+    with open(ACCOUNTS_FILE,'r',encoding='utf-8') as f:
+        return json.load(f)
+
+def save_accounts(accs):
+    with open(ACCOUNTS_FILE,'w',encoding='utf-8') as f:
+        json.dump(accs, f, ensure_ascii=False, indent=2)
+
+def find_account(username):
+    return next((u for u in load_accounts() if u['username']==username), None)
+
+def register_account(username, password):
+    if find_account(username):
+        return False
+    accs = load_accounts()
+    accs.append({
+        'username': username,
+        'pw_hash': generate_password_hash(password),
+        'rating': 1500
+    })
+    save_accounts(accs)
+    return True
+def verify_account(username, password):
+    u = find_account(username)
+    return u and check_password_hash(u['pw_hash'], password)
+
+def update_ratings(score_dict):
+    """
+    score_dict: dict of username → 得分（比賽中的實際分數）
+    支援多人比賽，採用正規化 Elo：
+      S_i_norm = Σ_{j≠i} s_ij  ／ (n-1)
+      E_i_norm = Σ_{j≠i} 1/(1+10^((R_j-R_i)/400)) ／ (n-1)
+      R_i ← R_i + K * (S_i_norm - E_i_norm)
+    其中 s_ij = 1 if player i 得分 > player j 得分,
+                  0.5 if 相同,
+                  0 otherwise.
+    """
+    accs = load_accounts()
+    # 取出在 accounts.json 裡的帳號 dict，方便原地修改
+    user_map = {u['username']: u for u in accs}
+
+    players = list(score_dict.keys())
+    n = len(players)
+    if n < 2:
+        # 少於 2 人不更新
+        return
+
+    # K 值 — 和雙人一樣
+    K = 32
+
+    # 1) 準備每人的舊 R
+    R = {u: user_map[u]['rating'] for u in players}
+
+    # 2) 計算每人 「實際對戰得分總和」 Σ s_ij
+    actual = {}
+    for i in players:
+        si = score_dict[i]
+        total = 0.0
+        for j in players:
+            if i == j: continue
+            sj = score_dict[j]
+            if   si >  sj: total += 1
+            elif si == sj: total += 0.5
+        actual[i] = total
+
+    # 3) 計算每人 「期望得分總和」 Σ E_ij
+    expected = {}
+    for i in players:
+        Ri = R[i]
+        esum = 0.0
+        for j in players:
+            if i == j: continue
+            Rj = R[j]
+            esum += 1 / (1 + 10 ** ((Rj - Ri) / 400))
+        expected[i] = esum
+
+    # 4) 更新：先正規化，再按 Elo 公式改變 rating
+    for u in players:
+        S_norm = actual[u]   / (n - 1)
+        E_norm = expected[u] / (n - 1)
+        delta  = K * (S_norm - E_norm)
+        new_R  = round(R[u] + delta)
+        user_map[u]['rating'] = new_R
+
+    # 5) 寫回檔案
+    save_accounts(accs)
+
+
+def login_required(f):
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        if 'username' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return wrapped
+
+@app.route('/register', methods=['GET','POST'])
+def register():
+    error = ''
+    if request.method=='POST':
+        u = request.form['username'].strip()
+        p = request.form['password']
+        if not u or not p:
+            error = '帳號密碼不可空'
+        elif not register_account(u, p):
+            error = '使用者已存在'
+        else:
+            return redirect(url_for('login'))
+    return render_template('register.html', error=error)
+
+@app.route('/login', methods=['GET','POST'])
+def login():
+    error = ''
+    if request.method == 'POST':
+        u = request.form['username']
+        p = request.form['password']
+        remember = request.form.get('remember')  # 來自前端的 checkbox
+        if verify_account(u, p):
+            session['username'] = u
+            # 如果使用者勾選「記住我」，把這個 Session 設為永久
+            session.permanent = bool(remember)
+            return redirect(url_for('index'))
+        error = '帳號或密碼錯誤'
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 def is_prime(n):
     """檢查一個數是否為質數"""
@@ -76,19 +216,26 @@ def generate_question(difficulty: str):
     }
 
 @app.route('/')
+@login_required
 def index():
+    username = session['username']
+    user = find_account(username)
+    rating = user['rating'] if user else 1500
+    return render_template('index.html',
+                           username=username,
+                           rating=rating)
     # 清除任何現有的會話數據
-    session.clear()
-    return render_template('index.html')
 
 # 修改 create_room 函數，添加 question_count 參數
 @app.route('/create_room', methods=['POST'])
+@login_required
 def create_room():
     """創建新的遊戲房間"""
-    username = request.form.get('username')
+    username = session['username']
     room_id = request.form.get('room_id')
     difficulty = request.form.get('difficulty', 'easy')
     game_mode = request.form.get('game_mode', 'first')
+    game_time = request.form.get('game_time', '30')
     question_count = int(request.form.get('question_count', '7'))  # 預設為7題
     
     # 檢查用戶名長度
@@ -116,6 +263,7 @@ def create_room():
         'question_timer': None,
         'difficulty': difficulty,
         'game_mode': game_mode,
+        'game_time': game_time,
         'question_count': question_count,  # 新增問題數量設定
         'correct_order': [],        # 比速度用
         'first_correct_done': False # 搶快用
@@ -125,9 +273,10 @@ def create_room():
 
 # 修改 join_existing_room 函數，檢查用戶名長度
 @app.route('/join_room', methods=['POST'])
+@login_required
 def join_existing_room():
     """加入現有遊戲房間"""
-    username = request.form.get('username')
+    username = session['username']
     room_id = request.form.get('room_id')
     
     # 檢查用戶名長度
@@ -152,6 +301,7 @@ def join_existing_room():
     return jsonify({'room_id': room_id})
 
 @app.route('/leave_room', methods=['POST'])
+@login_required
 def leave_current_room():
     """離開當前房間"""
     if 'username' in session and 'room_id' in session:
@@ -173,15 +323,20 @@ def leave_current_room():
             else:
                 # 通知房間內其他玩家
                 socketio.emit('user_left', {'username': username}, room=room_id)
+                ratings = {}
+                for u in rooms[room_id]['players']:
+                    acct = find_account(u)
+                    ratings[u] = acct['rating'] if acct else 1500
+
                 socketio.emit('room_status', {
-                    'players': rooms[room_id]['players'],
-                    'scores': rooms[room_id]['scores'],
-                    'ready': rooms[room_id]['ready'],
-                    'game_started': rooms[room_id]['game_started']
+                    'players':      rooms[room_id]['players'],
+                    'scores':       rooms[room_id]['scores'],
+                    'ready':        rooms[room_id]['ready'],
+                    'game_started': rooms[room_id]['game_started'],
+                    'ratings':      ratings
                 }, room=room_id)
         
         # 清除會話
-        session.pop('username', None)
         session.pop('room_id', None)
         
     return jsonify({'success': True})
@@ -197,12 +352,17 @@ def handle_connect():
             emit('user_joined', {'username': username}, room=room_id)
             
             # 更新房間狀態
-            emit('room_status', {
-                'players': rooms[room_id]['players'],
-                'scores': rooms[room_id]['scores'],
-                'ready':   rooms[room_id]['ready'],
+            ratings = {}
+            for u in rooms[room_id]['players']:
+                acct = find_account(u)
+                ratings[u] = acct['rating'] if acct else 1500
+
+            socketio.emit('room_status', {
+                'players':      rooms[room_id]['players'],
+                'scores':       rooms[room_id]['scores'],
+                'ready':        rooms[room_id]['ready'],
                 'game_started': rooms[room_id]['game_started'],
-                'room_id': room_id  # 確保房間ID被傳回
+                'ratings':      ratings
             }, room=room_id)
 
 @socketio.on('disconnect')
@@ -225,11 +385,17 @@ def handle_disconnect():
                     del rooms[room_id]
                 else:
                     emit('user_left', {'username': username}, room=room_id)
-                    emit('room_status', {
-                        'players': rooms[room_id]['players'],
-                        'scores': rooms[room_id]['scores'],
-                        'ready':   rooms[room_id]['ready'],
-                        'game_started': rooms[room_id]['game_started']
+                    ratings = {}
+                    for u in rooms[room_id]['players']:
+                        acct = find_account(u)
+                        ratings[u] = acct['rating'] if acct else 1500
+
+                    socketio.emit('room_status', {
+                        'players':      rooms[room_id]['players'],
+                        'scores':       rooms[room_id]['scores'],
+                        'ready':        rooms[room_id]['ready'],
+                        'game_started': rooms[room_id]['game_started'],
+                        'ratings':      ratings
                     }, room=room_id)
             
         leave_room(room_id)
@@ -303,7 +469,6 @@ def next_question(room_id):
     rooms[room_id]['answers'] = {}
     rooms[room_id]['correct_order'] = []     # 比速度用
     
-    # 設置 15 秒計時器
     rooms[room_id]['timer_abort'] = False
     rooms[room_id]['question_timer'] = socketio.start_background_task(
         question_timeout, room_id, rooms[room_id]['question_number']
@@ -314,8 +479,8 @@ def next_question(room_id):
         'question_count': rooms[room_id]['question_count'],  # 添加總題數
         'p': question['p'],
         'a': question['a'],
-        'time_limit': 15,  # 15 秒限時
-        'game_mode': rooms[room_id]['game_mode']
+        'game_mode': rooms[room_id]['game_mode'],
+        'game_time': rooms[room_id]['game_time'],
     }, room=room_id)
 
 
@@ -344,17 +509,32 @@ def end_game(room_id):
             'scores': scores
         }
     
-    emit('game_over', result, room=room_id)
-    
-    # 重置房間遊戲狀態，但保留玩家
-    rooms[room_id]['game_started'] = False
-    rooms[room_id]['ready'] = {}
+    update_ratings(scores)  # 定義見上 :contentReference[oaicite:0]{index=0}:contentReference[oaicite:1]{index=1}
+
+    # 3. 廣播 game_over
+    socketio.emit('game_over', result, room=room_id)
+
+    # 4. 準備最新的 ratings dict
+    ratings = {u: find_account(u)['rating'] for u in rooms[room_id]['players']}
+
+    # 5. 廣播最新房間狀態（包含更新後 R 值）
+    socketio.emit('room_status', {
+        'players':      rooms[room_id]['players'],
+        'scores':       rooms[room_id]['scores'],
+        'ready':        rooms[room_id]['ready'],
+        'game_started': rooms[room_id]['game_started'],
+        'ratings':      ratings,
+        'room_id':      room_id
+    }, room=room_id)
+
+    # 6. 重置房間遊戲狀態（保留玩家列表，但清空準備/問題狀態）
+    rooms[room_id]['game_started']     = False
+    rooms[room_id]['ready']            = {}
     rooms[room_id]['current_question'] = None
-    rooms[room_id]['question_number'] = 0
+    rooms[room_id]['question_number']  = 0
 
 def question_timeout(room_id, question_number):
-    """問題計時器，15 秒後自動進入下一題"""
-    socketio.sleep(15)
+    socketio.sleep(rooms[room_id]['game_time'])
     
     if room_id not in rooms:
         return

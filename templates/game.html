@@ -268,7 +268,7 @@
             <h3>房間號碼: <span id="room-id"></span></h3>
         </div>
         
-        <div class="players" id="player-container">
+        <div class="players" id="player-list">
             <!-- 玩家卡片會動態加入 -->
         </div>
         
@@ -377,7 +377,7 @@
         // 房間狀態更新
         socket.on('room_status', function(data) {
             console.log('房間狀態:', data);
-            updatePlayerList(data.players, data.scores, data.ready || {}, data.game_started);
+            updatePlayerList(data.players, data.scores, data.ready || {}, data.ratings, data.game_started);
         });
         
         // 玩家準備狀態
@@ -662,7 +662,8 @@
         socket.on('new_question', function(data) {
             console.log('新問題:', data);
             isAnswered = false;
-            timeLeft = data.time_limit || 100;
+            console.log("game_time", data.game_time)
+            timeLeft = data.game_time || 30;
             gameMode = data.game_mode;
             correctAnswerUsername = null;
             
@@ -723,29 +724,42 @@
         }
         
         // 更新玩家列表
-        function updatePlayerList(players, scores, readyStatus, gameStarted) {
-            const container = document.getElementById('player-container');
+        function updatePlayerList(players, scores, readyStatus, ratings, gameStarted) {
+            const container = document.getElementById('player-list');
             container.innerHTML = '';
-            
-            players.forEach(player => {
-                const isCurrentPlayer = player === myUsername;
-                const isReady = readyStatus[player];
-                const score = scores[player] || 0;
-                const isCorrectAnswerer = player === correctAnswerUsername;
-                
-                const playerCard = document.createElement('div');
-                playerCard.className = 'player-card';
-                if (isCurrentPlayer) playerCard.classList.add('current-player');
-                if (!gameStarted && isReady) playerCard.classList.add('ready');
-                if (gameStarted && isCorrectAnswerer) playerCard.classList.add('answered-correctly');
-                
-                playerCard.innerHTML = `
-                    <div class="player-name">${player}${isCurrentPlayer ? ' (你)' : ''}</div>
-                    <div class="player-score">分數: ${score}</div>
-                    ${!gameStarted ? `<div class="player-status">${isReady ? '已準備' : '未準備'}</div>` : ''}
-                `;
-                
-                container.appendChild(playerCard);
+
+            players.forEach(name => {
+                const card = document.createElement('div');
+                card.className = 'player-card';
+                if (name === myUsername) card.classList.add('current-player');
+
+                // 玩家名稱 + (你)
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'player-name';
+                nameSpan.textContent = name + (name === myUsername ? ' (你)' : '');
+
+                // R 值
+                const ratingSpan = document.createElement('span');
+                ratingSpan.className = 'player-rating';
+                ratingSpan.textContent = ` R: ${ratings[name] || 1500}`;
+
+                // 分數
+                const scoreSpan = document.createElement('span');
+                scoreSpan.className = 'player-score';
+                scoreSpan.textContent = ` 分數: ${scores[name] || 0}`;
+
+                // 準備狀態
+                const readySpan = document.createElement('span');
+                readySpan.className = 'player-ready';
+                readySpan.textContent = readyStatus[name] ? ' 已準備' : '';
+
+                // 組起來
+                card.appendChild(nameSpan);
+                card.appendChild(ratingSpan);
+                card.appendChild(scoreSpan);
+                card.appendChild(readySpan);
+
+                container.appendChild(card);
             });
         }
         

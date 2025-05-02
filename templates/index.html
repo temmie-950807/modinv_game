@@ -127,6 +127,9 @@
     </style>
 </head>
 <body>
+    <h1>歡迎，{{ username }} （R: {{ rating }}）</h1>
+    <a href="{{ url_for('logout') }}">登出</a>
+    
     <h1>模反元素數學競賽</h1>
     
     <div class="container">
@@ -144,10 +147,6 @@
         </div>
         
         <div id="CreateRoom" class="tabcontent" style="display: block;">
-            <div class="form-group">
-                <label for="create-username">你的名稱 (最多10個字):</label>
-                <input type="text" id="create-username" placeholder="輸入你的名稱" maxlength="10">
-            </div>
             <div class="form-group">
                 <label for="create-room-id">房間號碼 (選填，留空將隨機生成):</label>
                 <input type="text" id="create-room-id" placeholder="輸入房間號碼或留空">
@@ -179,11 +178,11 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="create-mode">遊戲時間:</label>
-                    <select id="create-mode">
-                        <option value="first">15 秒</option>
-                        <option value="speed">30 秒</option>
-                        <option value="speed">100 秒</option>
+                    <label for="game-time">遊戲時間:</label>
+                    <select id="game-time">
+                        <option value="15">15 秒</option>
+                        <option value="30">30 秒</option>
+                        <option value="100">100 秒</option>
                     </select>
                 </div>
             </div>
@@ -193,10 +192,6 @@
         </div>
         
         <div id="JoinRoom" class="tabcontent">
-            <div class="form-group">
-                <label for="join-username">你的名稱 (最多10個字):</label>
-                <input type="text" id="join-username" placeholder="輸入你的名稱" maxlength="10">
-            </div>
             <div class="form-group">
                 <label for="join-room-id">房間號碼:</label>
                 <input type="text" id="join-room-id" placeholder="輸入房間號碼">
@@ -231,20 +226,15 @@
             const difficulty = document.getElementById('create-difficulty').value;
             const mode = document.getElementById('create-mode').value;
             const questionCount = document.getElementById('create-question-count').value;
+            const gameTime = document.getElementById('game-time').value;
             const formData = new FormData();
             formData.append('difficulty', difficulty);
             formData.append('game_mode', mode);
             formData.append('question_count', questionCount);
-            const username = document.getElementById('create-username').value.trim();
+            formData.append('game-time', gameTime);
             const roomId = document.getElementById('create-room-id').value.trim();
             const errorElement = document.getElementById('create-error');
             
-            if (!username) {
-                errorElement.textContent = "請輸入你的名稱";
-                return;
-            }
-            
-            formData.append('username', username);
             if (roomId) {
                 formData.append('room_id', roomId);
             }
@@ -275,19 +265,8 @@
         }
 
         function joinRoom() {
-            const username = document.getElementById('join-username').value.trim();
             const roomId = document.getElementById('join-room-id').value.trim();
             const errorElement = document.getElementById('join-error');
-            
-            if (!username) {
-                errorElement.textContent = "請輸入你的名稱";
-                return;
-            }
-            
-            if (username.length > 10) {
-                errorElement.textContent = "名稱不能超過10個字";
-                return;
-            }
             
             if (!roomId) {
                 errorElement.textContent = "請輸入房間號碼";
@@ -302,7 +281,6 @@
             }
             
             const formData = new FormData();
-            formData.append('username', username);
             formData.append('room_id', roomId);
             
             fetch('/join_room', {
@@ -314,7 +292,6 @@
                 if (data.error) {
                     errorElement.textContent = data.error;
                 } else {
-                    localStorage.setItem('username', username);
                     window.location.href = '/game';
                 }
             })
