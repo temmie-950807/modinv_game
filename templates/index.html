@@ -1,0 +1,228 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模反元素競賽</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .tab {
+            overflow: hidden;
+            border: 1px solid #ccc;
+            background-color: #f1f1f1;
+            border-radius: 4px 4px 0 0;
+        }
+        .tab button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 10px 16px;
+            transition: 0.3s;
+            color: #333;
+            margin-top: 0;
+        }
+        .tab button:hover {
+            background-color: #ddd;
+        }
+        .tab button.active {
+            background-color: #ccc;
+        }
+        .tabcontent {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            background-color: white;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+        .game-description {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>模反元素數學競賽</h1>
+    
+    <div class="container">
+        <div class="game-description">
+            <h3>遊戲說明</h3>
+            <p>這是一個關於模反元素的雙人競賽遊戲！</p>
+            <p>每回合系統會隨機生成一個質數 p（範圍：2-50）和一個數字 a（範圍：0-(p-1)）。</p>
+            <p>你的任務是計算出 a 在模 p 下的模反元素，即找到一個整數 x 使得 a·x ≡ 1 (mod p)。</p>
+            <p>每局遊戲包含 7 道題目，答對且最快的玩家獲得該回合的分數！</p>
+        </div>
+        
+        <div class="tab">
+            <button class="tablinks active" onclick="openTab(event, 'CreateRoom')">創建房間</button>
+            <button class="tablinks" onclick="openTab(event, 'JoinRoom')">加入房間</button>
+        </div>
+        
+        <div id="CreateRoom" class="tabcontent" style="display: block;">
+            <div class="form-group">
+                <label for="create-username">你的名稱:</label>
+                <input type="text" id="create-username" placeholder="輸入你的名稱">
+            </div>
+            <div class="form-group">
+                <label for="create-room-id">房間號碼 (選填，留空將隨機生成):</label>
+                <input type="text" id="create-room-id" placeholder="輸入房間號碼或留空">
+            </div>
+            <button onclick="createRoom()">創建房間</button>
+            <div id="create-error" class="error"></div>
+        </div>
+        
+        <div id="JoinRoom" class="tabcontent">
+            <div class="form-group">
+                <label for="join-username">你的名稱:</label>
+                <input type="text" id="join-username" placeholder="輸入你的名稱">
+            </div>
+            <div class="form-group">
+                <label for="join-room-id">房間號碼:</label>
+                <input type="text" id="join-room-id" placeholder="輸入房間號碼">
+            </div>
+            <button onclick="joinRoom()">加入房間</button>
+            <div id="join-error" class="error"></div>
+        </div>
+    </div>
+
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
+        }
+
+        function createRoom() {
+            const username = document.getElementById('create-username').value.trim();
+            const roomId = document.getElementById('create-room-id').value.trim();
+            const errorElement = document.getElementById('create-error');
+            
+            if (!username) {
+                errorElement.textContent = "請輸入你的名稱";
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('username', username);
+            if (roomId) {
+                formData.append('room_id', roomId);
+            }
+            
+            fetch('/create_room', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    errorElement.textContent = data.error;
+                } else {
+                    window.location.href = '/game';
+                }
+            })
+            .catch(error => {
+                errorElement.textContent = "發生錯誤，請稍後再試";
+                console.error('Error:', error);
+            });
+        }
+
+        function joinRoom() {
+            const username = document.getElementById('join-username').value.trim();
+            const roomId = document.getElementById('join-room-id').value.trim();
+            const errorElement = document.getElementById('join-error');
+            
+            if (!username) {
+                errorElement.textContent = "請輸入你的名稱";
+                return;
+            }
+            
+            if (!roomId) {
+                errorElement.textContent = "請輸入房間號碼";
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('username', username);
+            formData.append('room_id', roomId);
+            
+            fetch('/join_room', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    errorElement.textContent = data.error;
+                } else {
+                    window.location.href = '/game';
+                }
+            })
+            .catch(error => {
+                errorElement.textContent = "發生錯誤，請稍後再試";
+                console.error('Error:', error);
+            });
+        }
+    </script>
+</body>
+</html>

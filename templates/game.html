@@ -1,0 +1,647 @@
+<!-- templates/game.html -->
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模反元素競賽 - 遊戲</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #333;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .room-info {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+        .players {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+        .player-card {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 45%;
+            text-align: center;
+            position: relative;
+        }
+        .player-card.ready::after {
+            content: "準備完成";
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .player-card.answered-correctly::after {
+            content: "答對了！";
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: #FF5722;
+            color: white;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .player-card.current-player {
+            border: 2px solid #4CAF50;
+        }
+        .question-container {
+            display: none;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .question {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .answer-input {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .answer-input input {
+            width: 100px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+            text-align: center;
+            font-size: 18px;
+        }
+        .answer-input button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .answer-input button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .timer {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: #ff5722;
+            font-weight: bold;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.secondary {
+            background-color: #607D8B;
+        }
+        button.secondary:hover {
+            background-color: #546E7A;
+        }
+        .waiting-message {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .result-container {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        .result-container.correct {
+            background-color: #dff0d8;
+            border: 1px solid #d6e9c6;
+            color: #3c763d;
+        }
+        .result-container.incorrect {
+            background-color: #f2dede;
+            border: 1px solid #ebccd1;
+            color: #a94442;
+        }
+        .game-over {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .winner {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #4CAF50;
+        }
+        .instructions {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .progress {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+        .player-status {
+            font-size: 14px;
+            color: #666;
+        }
+        .action-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+        }
+        .time-up-message {
+            color: #f44336;
+            font-weight: bold;
+            font-size: 18px;
+            text-align: center;
+            margin: 10px 0;
+            display: none;
+        }
+        .opponent-answered {
+            background-color: #FFF3CD;
+            color: #856404;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: center;
+            margin: 10px 0;
+            font-weight: bold;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>模反元素數學競賽</h1>
+    
+    <div class="container">
+        <div class="room-info">
+            <h3>房間號碼: <span id="room-id"></span></h3>
+        </div>
+        
+        <div class="players" id="player-container">
+            <!-- 玩家卡片會動態加入 -->
+        </div>
+        
+        <div id="waiting-screen">
+            <div class="instructions">
+                <h3>模反元素解釋</h3>
+                <p>在模運算中，模反元素是指對於一個數 a 和一個模數 p，找到另一個數 x，使得 a·x ≡ 1 (mod p)。</p>
+                <p>例如，如果 a = 3, p = 11，則 a 的模反元素是 4，因為 3 × 4 = 12，而 12 ÷ 11 的餘數是 1。</p>
+                <p>只有當 a 與 p 互質時，a 才存在關於模 p 的模反元素。</p>
+            </div>
+            
+            <div class="waiting-message">
+                等待兩名玩家準備...
+            </div>
+            
+            <div class="action-buttons">
+                <button class="secondary" onclick="backToHomepage()">返回主頁</button>
+                <button id="ready-button" onclick="markReady()">準備開始</button>
+            </div>
+        </div>
+        
+        <div id="game-screen" style="display: none;">
+            <div class="progress">
+                <span id="question-progress">問題 1/7</span>
+            </div>
+            
+            <div class="timer" id="timer">剩餘時間: 30 秒</div>
+            
+            <div class="question-container" id="question-container">
+                <div class="question" id="question-text">
+                    <!-- 問題內容 -->
+                </div>
+                
+                <div class="answer-input">
+                    <input type="number" id="answer-input" placeholder="答案">
+                    <button id="submit-button" onclick="submitAnswer()">提交</button>
+                </div>
+            </div>
+            
+            <div class="opponent-answered" id="opponent-answered">
+                對手已答對此題！
+            </div>
+            
+            <div class="time-up-message" id="time-up-message">
+                時間到！
+            </div>
+            
+            <div class="result-container" id="result-container">
+                <!-- 答案結果 -->
+            </div>
+        </div>
+        
+        <div id="game-over" class="game-over">
+            <!-- 遊戲結束資訊 -->
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let myUsername = '';
+        let isAnswered = false;
+        let countdownInterval = null;
+        let timeLeft = 30;
+        let gameInProgress = false;
+        let correctAnswerUsername = null;
+        let redirectTimer = null;
+        
+        // 當連接到服務器時
+        socket.on('connect', function() {
+            console.log('已連接到服務器');
+            fetchRoomInfo();
+        });
+        
+        function fetchRoomInfo() {
+            fetch('/get_room_id')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.room_id) {
+                        document.getElementById('room-id').textContent = data.room_id;
+                        
+                        // 獲取Session中的用戶名
+                        myUsername = localStorage.getItem('username') || '';
+                    }
+                })
+                .catch(error => {
+                    console.error('獲取房間信息出錯:', error);
+                });
+        }
+        
+        // 用戶加入
+        socket.on('user_joined', function(data) {
+            console.log('用戶加入:', data.username);
+        });
+        
+        // 房間狀態更新
+        socket.on('room_status', function(data) {
+            console.log('房間狀態:', data);
+            updatePlayerList(data.players, data.scores, data.ready || {}, data.game_started);
+        });
+        
+        // 玩家準備狀態
+        socket.on('player_ready_status', function(data) {
+            console.log('準備狀態:', data);
+            document.querySelector('.waiting-message').textContent = 
+                `等待玩家準備... (${data.ready_count}/${data.total_players})`;
+                
+            // 更新玩家準備狀態
+            const playerCards = document.querySelectorAll('.player-card');
+            playerCards.forEach(card => {
+                const playerName = card.querySelector('.player-name').textContent.replace(' (你)', '');
+                if (playerName === data.username) {
+                    card.classList.add('ready');
+                }
+            });
+        });
+        
+        // 遊戲開始
+        socket.on('game_started', function() {
+            console.log('遊戲開始');
+            gameInProgress = true;
+            document.getElementById('waiting-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'block';
+        });
+        
+        // 新問題
+        socket.on('new_question', function(data) {
+            console.log('新問題:', data);
+            isAnswered = false;
+            timeLeft = data.time_limit || 30;
+            correctAnswerUsername = null;
+            
+            // 重置UI
+            document.getElementById('opponent-answered').style.display = 'none';
+            
+            // 重置計時器
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            
+            // 啟動新計時器
+            updateTimer();
+            countdownInterval = setInterval(updateTimer, 1000);
+            
+            document.getElementById('question-progress').textContent = `問題 ${data.question_number}/7`;
+            document.getElementById('question-text').innerHTML = `
+                求 ${data.a} 在模 ${data.p} 下的模反元素。<br>
+                <small>(即求 x，使得 ${data.a} · x ≡ 1 (mod ${data.p}))</small>
+            `;
+            
+            document.getElementById('answer-input').value = '';
+            document.getElementById('answer-input').disabled = false;
+            document.getElementById('submit-button').disabled = false;
+            document.getElementById('question-container').style.display = 'block';
+            document.getElementById('result-container').style.display = 'none';
+            document.getElementById('time-up-message').style.display = 'none';
+            
+            // 重置玩家卡片的答對標記
+            const playerCards = document.querySelectorAll('.player-card');
+            playerCards.forEach(card => {
+                card.classList.remove('answered-correctly');
+            });
+        });
+        
+        // 更新計時器
+        function updateTimer() {
+            document.getElementById('timer').textContent = `剩餘時間: ${timeLeft} 秒`;
+            
+            if (timeLeft <= 0) {
+                clearInterval(countdownInterval);
+                document.getElementById('timer').textContent = '時間到！';
+                document.getElementById('answer-input').disabled = true;
+                document.getElementById('submit-button').disabled = true;
+            }
+            
+            timeLeft--;
+        }
+        
+        // 玩家答題
+        socket.on('player_answered', function(data) {
+            console.log('玩家答題:', data);
+        });
+        
+        // 時間到
+        socket.on('time_up', function(data) {
+            console.log('時間到:', data);
+            clearInterval(countdownInterval);
+            document.getElementById('timer').textContent = '時間到！';
+            document.getElementById('time-up-message').style.display = 'block';
+            document.getElementById('time-up-message').textContent = `時間到！正確答案是: ${data.correct_answer}`;
+            document.getElementById('answer-input').disabled = true;
+            document.getElementById('submit-button').disabled = true;
+        });
+        
+        // 有人回答正確
+        socket.on('someone_answered_correctly', function(data) {
+            console.log('有人回答正確:', data);
+            correctAnswerUsername = data.username;
+            
+            // 標記答對的玩家
+            const playerCards = document.querySelectorAll('.player-card');
+            playerCards.forEach(card => {
+                const playerName = card.querySelector('.player-name').textContent.replace(' (你)', '');
+                if (playerName === data.username) {
+                    card.classList.add('answered-correctly');
+                }
+            });
+            
+            if (data.username !== myUsername) {
+                document.getElementById('answer-input').disabled = true;
+                document.getElementById('submit-button').disabled = true;
+                document.getElementById('opponent-answered').style.display = 'block';
+                document.getElementById('opponent-answered').textContent = `${data.username} 已答對此題！`;
+            }
+        });
+        
+        // 答案被拒絕
+        socket.on('answer_rejected', function(data) {
+            console.log('答案被拒絕:', data);
+            alert(data.message);
+        });
+        
+        // 答案結果
+        socket.on('answer_result', function(data) {
+            console.log('答案結果:', data);
+            isAnswered = true;
+            
+            const resultContainer = document.getElementById('result-container');
+            resultContainer.style.display = 'block';
+            
+            if (data.correct) {
+                resultContainer.className = 'result-container correct';
+                if (data.first_correct) {
+                    resultContainer.innerHTML = '<strong>回答正確！</strong><br>你是第一個回答正確的，獲得1分！';
+                } else {
+                    resultContainer.innerHTML = '<strong>回答正確！</strong><br>但不是第一個回答正確的，沒有獲得分數。';
+                }
+            } else {
+                resultContainer.className = 'result-container incorrect';
+                resultContainer.innerHTML = `<strong>回答錯誤！</strong><br>正確答案是: ${data.correct_answer}`;
+            }
+            
+            document.getElementById('answer-input').disabled = true;
+            document.getElementById('submit-button').disabled = true;
+        });
+        
+        // 更新分數
+        socket.on('update_scores', function(data) {
+            console.log('更新分數:', data);
+            updatePlayerScores(data.scores);
+        });
+        
+        // 遊戲結束
+        socket.on('game_over', function(data) {
+            console.log('遊戲結束:', data);
+            gameInProgress = false;
+            
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            
+            const gameOverContainer = document.getElementById('game-over');
+            gameOverContainer.style.display = 'block';
+            document.getElementById('game-screen').style.display = 'none';
+            
+            if (data.tie) {
+                gameOverContainer.innerHTML = `
+                    <h2>遊戲結束</h2>
+                    <div class="winner">平局！</div>
+                    <p>平手玩家: ${data.tied_players.join(', ')}</p>
+                    <div class="final-scores">
+                        ${Object.entries(data.scores).map(([player, score]) => 
+                            `<div>${player}: ${score}分</div>`).join('')}
+                    </div>
+                    <div id="redirect-message">5秒後返回主頁...</div>
+                    <button onclick="backToHomepage()">立即返回主頁</button>
+                `;
+            } else {
+                gameOverContainer.innerHTML = `
+                    <h2>遊戲結束</h2>
+                    <div class="winner">贏家: ${data.winner}</div>
+                    <div class="final-scores">
+                        ${Object.entries(data.scores).map(([player, score]) => 
+                            `<div>${player}: ${score}分</div>`).join('')}
+                    </div>
+                    <div id="redirect-message">5秒後返回主頁...</div>
+                    <button onclick="backToHomepage()">立即返回主頁</button>
+                `;
+            }
+            
+            // 設置5秒後自動返回主頁的計時器
+            let countdown = 5;
+            const redirectMessage = document.getElementById('redirect-message');
+            
+            redirectTimer = setInterval(function() {
+                countdown--;
+                redirectMessage.textContent = `${countdown}秒後返回主頁...`;
+                
+                if (countdown <= 0) {
+                    clearInterval(redirectTimer);
+                    backToHomepage();
+                }
+            }, 1000);
+        });
+        
+        // 用戶離開
+        socket.on('user_left', function(data) {
+            console.log('用戶離開:', data);
+        });
+        
+        // 初始化
+        function init() {
+            // 從URL參數中獲取用戶名和房間ID
+            const params = new URLSearchParams(window.location.search);
+            myUsername = params.get('username') || '';
+            
+            if (myUsername) {
+                localStorage.setItem('username', myUsername);
+            } else {
+                myUsername = localStorage.getItem('username') || '';
+            }
+            
+            // 獲取房間ID
+            fetchRoomInfo();
+        }
+        
+        // 更新玩家列表
+        function updatePlayerList(players, scores, readyStatus, gameStarted) {
+            const container = document.getElementById('player-container');
+            container.innerHTML = '';
+            
+            players.forEach(player => {
+                const isCurrentPlayer = player === myUsername;
+                const isReady = readyStatus[player];
+                const score = scores[player] || 0;
+                const isCorrectAnswerer = player === correctAnswerUsername;
+                
+                const playerCard = document.createElement('div');
+                playerCard.className = 'player-card';
+                if (isCurrentPlayer) playerCard.classList.add('current-player');
+                if (!gameStarted && isReady) playerCard.classList.add('ready');
+                if (gameStarted && isCorrectAnswerer) playerCard.classList.add('answered-correctly');
+                
+                playerCard.innerHTML = `
+                    <div class="player-name">${player}${isCurrentPlayer ? ' (你)' : ''}</div>
+                    <div class="player-score">分數: ${score}</div>
+                    ${!gameStarted ? `<div class="player-status">${isReady ? '已準備' : '未準備'}</div>` : ''}
+                `;
+                
+                container.appendChild(playerCard);
+            });
+        }
+        
+        // 更新玩家分數
+        function updatePlayerScores(scores) {
+            const playerCards = document.querySelectorAll('.player-card');
+            playerCards.forEach(card => {
+                const playerName = card.querySelector('.player-name').textContent.replace(' (你)', '');
+                const scoreElement = card.querySelector('.player-score');
+                if (scoreElement) {
+                    scoreElement.textContent = `分數: ${scores[playerName] || 0}`;
+                }
+            });
+        }
+        
+        // 標記準備開始
+        function markReady() {
+            socket.emit('player_ready');
+            document.getElementById('ready-button').disabled = true;
+            document.getElementById('ready-button').textContent = '已準備';
+        }
+        
+        // 提交答案
+        function submitAnswer() {
+            if (isAnswered) return;
+            
+            const answerInput = document.getElementById('answer-input');
+            const answer = answerInput.value.trim();
+            
+            if (!answer) {
+                alert('請輸入答案');
+                return;
+            }
+            
+            socket.emit('submit_answer', { answer: answer });
+            document.getElementById('submit-button').disabled = true;
+        }
+        
+        // 返回主頁
+        function backToHomepage() {
+            // 清除所有計時器
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            if (redirectTimer) {
+                clearInterval(redirectTimer);
+            }
+            
+            // 清除會話並返回主頁
+            fetch('/leave_room', {
+                method: 'POST'
+            })
+            .then(() => {
+                window.location.href = '/';
+            })
+            .catch(error => {
+                console.error('離開房間出錯:', error);
+                window.location.href = '/';
+            });
+        }
+        
+        // 添加按鍵事件監聽器，按Enter可提交答案
+        document.getElementById('answer-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                submitAnswer();
+            }
+        });
+        
+        // 初始化頁面
+        window.onload = init;
+        
+        // 添加beforeunload事件監聽器，確保在頁面關閉時清理
+        window.addEventListener('beforeunload', function() {
+            fetch('/leave_room', { method: 'POST' });
+        });
+    </script>
+</body>
+</html>
