@@ -1,0 +1,12 @@
+<form method="post">
+  <input name="username" placeholder="帳號" required><br>
+  <input name="password" type="password" placeholder="密碼" required><br>
+
+  <!-- 新增：記住我 -->
+  <input type="checkbox" id="remember" name="remember" value="1">
+  <label for="remember">記住我，30 天內免登入</label><br>
+
+  <button type="submit">登入</button>
+</form>
+<p style="color:red;">{{ error }}</p>
+<p>還沒有帳號？<a href="{{ url_for('register') }}">註冊</a></p>

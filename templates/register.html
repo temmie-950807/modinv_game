@@ -1,0 +1,10 @@
+<!DOCTYPE html><html><body>
+    <h2>註冊</h2>
+    <form method="post">
+      <input name="username" placeholder="帳號" required><br>
+      <input name="password" type="password" placeholder="密碼" required><br>
+      <button type="submit">註冊</button>
+    </form>
+    <p style="color:red;">{{ error }}</p>
+    <p>已有帳號？<a href="{{ url_for('login') }}">登入</a></p>
+  </body></html>
