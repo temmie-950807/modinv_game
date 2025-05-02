@@ -51,11 +51,11 @@ def mod_inverse(a, m):
 
 def generate_question():
     """生成一個有關模反元素的問題"""
-    primes = get_primes(2, 50)
+    primes = get_primes(11, 50)
     p = random.choice(primes)
     
     # 選擇 a，確保 a 和 p 互質 (這裡小於 p 的數一定與 p 互質，因為 p 是質數)
-    a = random.randint(1, p - 1)
+    a = random.randint(10, p - 1)
     
     answer = mod_inverse(a, p)
     return {
@@ -249,7 +249,7 @@ def next_question(room_id):
     rooms[room_id]['current_question'] = question
     rooms[room_id]['answers'] = {}
     
-    # 設置30秒計時器
+    # 設置100秒計時器
     rooms[room_id]['question_timer'] = socketio.start_background_task(
         question_timeout, room_id, rooms[room_id]['question_number']
     )
@@ -258,12 +258,12 @@ def next_question(room_id):
         'question_number': rooms[room_id]['question_number'],
         'p': question['p'],
         'a': question['a'],
-        'time_limit': 30  # 30秒限時
+        'time_limit': 100  # 100秒限時
     }, room=room_id)
 
 def question_timeout(room_id, question_number):
-    """問題計時器，30秒後自動進入下一題"""
-    socketio.sleep(30)
+    """問題計時器，100秒後自動進入下一題"""
+    socketio.sleep(100)
     
     if room_id not in rooms:
         return

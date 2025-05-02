@@ -244,7 +244,7 @@
                 <span id="question-progress">問題 1/7</span>
             </div>
             
-            <div class="timer" id="timer">剩餘時間: 30 秒</div>
+            <div class="timer" id="timer">剩餘時間: 100 秒</div>
             
             <div class="question-container" id="question-container">
                 <div class="question" id="question-text">
@@ -280,7 +280,7 @@
         let myUsername = '';
         let isAnswered = false;
         let countdownInterval = null;
-        let timeLeft = 30;
+        let timeLeft = 100;
         let gameInProgress = false;
         let correctAnswerUsername = null;
         let redirectTimer = null;
@@ -346,7 +346,7 @@
         socket.on('new_question', function(data) {
             console.log('新問題:', data);
             isAnswered = false;
-            timeLeft = data.time_limit || 30;
+            timeLeft = data.time_limit || 100;
             correctAnswerUsername = null;
             
             // 重置UI
