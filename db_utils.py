@@ -93,11 +93,23 @@ def update_ratings(score_dict):
     """
     更新多個使用者 rating
     score_dict: dict of username → 得分（比賽中的實際分數）
+    
+    平手情況下不更新 rating
     """
     players = list(score_dict.keys())
     n = len(players)
     if n < 2:
         # 少於 2 人不更新
+        return
+    
+    # 檢查是否有平手情況
+    scores = list(score_dict.values())
+    max_score = max(scores)
+    winners = [p for p, s in score_dict.items() if s == max_score]
+    
+    # 如果有多個贏家（平手），則不更新 rating
+    if len(winners) > 1:
+        print(f"遊戲結果平手，玩家 {', '.join(winners)} 的 rating 不變")
         return
     
     # 取出每個玩家的資料
