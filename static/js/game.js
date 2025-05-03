@@ -184,7 +184,7 @@ socket.on('someone_answered_correctly', function(data) {
     console.log('有人回答正確:', data);
     correctAnswerUsername = data.username;
     
-    // 標記答對的玩家 - 使用更可靠的方法
+    // 標記答對的玩家（保持原有邏輯）
     const playerCards = document.querySelectorAll('.player-card');
     for (const card of playerCards) {
         // 查找所有文本元素
@@ -204,9 +204,16 @@ socket.on('someone_answered_correctly', function(data) {
         if (found) break;
     }
     
-    if (data.username !== myUsername && gameMode === 'first') {
+    // 搶快模式下，如果是他人答對，禁用輸入框
+    if (data.username !== myUsername && data.mode === 'first') {
         document.getElementById('answer-input').disabled = true;
         document.getElementById('submit-button').disabled = true;
+    }
+    
+    // 在搶快模式下，停止計時器 - 新增的部分
+    if (data.stop_timer) {
+        clearInterval(countdownInterval);
+        document.getElementById('timer').textContent = '有人答對！等待下一題...';
     }
 });
 

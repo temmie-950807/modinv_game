@@ -548,7 +548,8 @@ def handle_answer(data):
     if correct and points > 0:
         emit('someone_answered_correctly', {
             'username': username,
-            'mode': mode                  # ★ 告知前端目前模式
+            'mode': mode,
+            'stop_timer': mode == 'first'  # 如果是搶快模式則通知前端停止計時器
         }, room=room_id)
     else:
         emit('someone_answered_incorrectly', {
