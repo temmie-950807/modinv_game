@@ -1,0 +1,197 @@
+.header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.stats-summary {
+    display: flex;
+    justify-content: space-around;
+    margin: 20px 0;
+    padding: 10px;
+    background-color: #f0f0f0;
+    border-radius: 4px;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-item .label {
+    font-weight: bold;
+    display: block;
+    margin-bottom: 5px;
+    color: #555;
+}
+
+.stat-item .value {
+    font-size: 1.2em;
+    color: #333;
+}
+
+.search-filter {
+    margin-bottom: 20px;
+}
+
+.search-filter input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+    box-sizing: border-box;
+}
+
+.leaderboard-table-container {
+    overflow-x: auto;
+    margin-bottom: 20px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.leaderboard-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.leaderboard-table th,
+.leaderboard-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.leaderboard-table th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+    position: sticky;
+    top: 0;
+}
+
+.leaderboard-table tbody tr:hover {
+    background-color: #f9f9f9;
+}
+
+.loading-row td {
+    text-align: center;
+    padding: 20px;
+    color: #777;
+}
+
+.rating-info {
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-radius: 4px;
+}
+
+.rating-info h3 {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+.rating-tiers {
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+}
+
+.tier {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 10px;
+    min-width: 100px;
+}
+
+.tier-name {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.tier-range {
+    font-size: 0.9em;
+    color: #555;
+    margin-bottom: 5px;
+}
+
+.tier-color {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+}
+
+.action-buttons {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.button {
+    display: inline-block;
+    background-color: #4CAF50;
+    color: white;
+    text-decoration: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+.button:hover {
+    background-color: #45a049;
+}
+
+/* 排名顯示樣式 */
+.rank-1, .rank-2, .rank-3 {
+    font-weight: bold;
+}
+
+.rank-1 {
+    color: gold;
+}
+
+.rank-2 {
+    color: silver;
+}
+
+.rank-3 {
+    color: #cd7f32; /* bronze */
+}
+
+/* 用戶名稱顏色 */
+.normal {
+    color: black;
+}
+
+.specialist {
+    color: #03A89E;
+}
+
+.expert {
+    color: blue;
+}
+
+.candidate_master {
+    color: #a0a;
+}
+
+/* 響應式設計 */
+@media (max-width: 768px) {
+    .stats-summary {
+        flex-direction: column;
+    }
+    
+    .stat-item {
+        margin-bottom: 10px;
+    }
+    
+    .leaderboard-table th,
+    .leaderboard-table td {
+        padding: 8px 10px;
+    }
+}
+
+/* 當前用戶高亮 */
+.current-user {
+    background-color: #e6f7ff !important;
+    font-weight: bold;
+}

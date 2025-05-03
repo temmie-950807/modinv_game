@@ -86,3 +86,25 @@ select, input[type="text"] {
     text-align: right;
     margin-top: 2px;
 }
+
+.header-links {
+    margin-top: 5px;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.header-links a {
+    text-decoration: none;
+    color: #4CAF50;
+}
+
+.header-links a:hover {
+    text-decoration: underline;
+}
+
+.leaderboard-link {
+    display: inline-block;
+    color: #4CAF50;
+    margin-right: 10px;
+}

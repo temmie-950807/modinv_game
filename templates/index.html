@@ -19,7 +19,11 @@
             </span>
             （R: {{ rating }}）
         </h1>
-        <a href="{{ url_for('logout') }}">登出</a>
+        <!-- Add this line for the leaderboard link -->
+        <div class="header-links">
+            <a href="{{ url_for('leaderboard') }}" class="leaderboard-link">排行榜</a>
+            <a href="{{ url_for('logout') }}">登出</a>
+        </div>
     </div>
     
     <h1>模反元素數學競賽</h1>
@@ -64,9 +68,9 @@
                 <div class="form-group">
                     <label for="create-question-count">題目數量:</label>
                     <select id="create-question-count">
+                        <option value="3">3 題</option>
                         <option value="7">7 題</option>
                         <option value="15">15 題</option>
-                        <option value="30">30 題</option>
                     </select>
                 </div>
                 <div class="form-group">

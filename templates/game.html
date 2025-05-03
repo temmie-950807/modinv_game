@@ -1,4 +1,4 @@
-<!-- templates/game.html -->
+<!-- 修改 templates/game.html -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -36,6 +36,7 @@
             <div class="action-buttons">
                 <button class="secondary" onclick="backToHomepage()">返回主頁</button>
                 <button id="ready-button" onclick="markReady()">準備開始</button>
+                <!-- 移除了查看排行榜按鈕 -->
             </div>
         </div>
 
@@ -81,7 +82,7 @@
         </div>
         
         <div id="game-over" class="game-over">
-            <!-- 遊戲結束資訊 -->
+            <!-- 遊戲結束時顯示的內容會動態加入，在 game.js 中處理 -->
         </div>
     </div>
 

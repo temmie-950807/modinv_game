@@ -261,3 +261,67 @@
 .username-header a:hover {
     text-decoration: underline;
 }
+.action-buttons {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 15px;
+    align-items: center;
+}
+
+.leaderboard-button {
+    display: inline-block;
+    background-color: #607D8B;
+    color: white;
+    text-decoration: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    font-size: 16px;
+    text-align: center;
+}
+
+.leaderboard-button:hover {
+    background-color: #546E7A;
+}
+
+.game-over-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.leaderboard-button {
+    display: inline-block;
+    background-color: #607D8B; /* 更改為與主按鈕相同的綠色 */
+    color: white;
+    text-decoration: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    font-size: 16px;
+    text-align: center;
+    border: none; /* 確保沒有邊框 */
+    cursor: pointer; /* 滑鼠移上去顯示游標 */
+}
+
+.leaderboard-button:hover {
+    background-color: #607D8B; /* 更改為與主按鈕相同的 hover 效果 */
+}
+
+/* 確保遊戲結束區塊樣式正確 */
+.game-over {
+    display: none;
+    text-align: center;
+    padding: 20px;
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    margin-top: 20px;
+}
+
+.final-scores {
+    margin: 15px 0;
+    font-size: 16px;
+}
+
+.final-scores div {
+    margin: 5px 0;
+}

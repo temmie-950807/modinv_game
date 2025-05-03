@@ -598,6 +598,30 @@ def get_room_id():
         return jsonify({'room_id': session['room_id']})
     return jsonify({'error': '未找到房間ID'})
 
+# Add this route to app.py
+@app.route('/leaderboard')
+def leaderboard():
+    """Show the leaderboard of all players"""
+    return render_template('leaderboard.html')
+
+# Add this API endpoint to get leaderboard data
+@app.route('/api/leaderboard')
+def get_leaderboard():
+    """Get the leaderboard data as JSON"""
+    conn = sqlite3.connect('modular_inverse_game.db')
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT username, rating 
+        FROM users 
+        ORDER BY rating DESC
+    """)
+    
+    players = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    
+    return jsonify({'players': players})
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=8000, debug=True)

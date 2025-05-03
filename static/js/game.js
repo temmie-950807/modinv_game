@@ -308,6 +308,9 @@ socket.on('update_scores', function(data) {
 });
 
 // 遊戲結束
+// 修改 socket.on('game_over') 事件處理函數
+// 在 static/js/game.js 中找到此函數並替換
+
 socket.on('game_over', function(data) {
     console.log('遊戲結束:', data);
     gameInProgress = false;
@@ -330,7 +333,10 @@ socket.on('game_over', function(data) {
                     `<div>${player}: ${score}分</div>`).join('')}
             </div>
             <div id="redirect-message">100秒後返回主頁...</div>
-            <button onclick="backToHomepage()">立即返回主頁</button>
+            <div class="game-over-buttons">
+                <button onclick="backToHomepage()">立即返回主頁</button>
+                <a href="/leaderboard" class="leaderboard-button">查看排行榜</a>
+            </div>
         `;
     } else {
         gameOverContainer.innerHTML = `
@@ -341,11 +347,14 @@ socket.on('game_over', function(data) {
                     `<div>${player}: ${score}分</div>`).join('')}
             </div>
             <div id="redirect-message">100秒後返回主頁...</div>
-            <button onclick="backToHomepage()">立即返回主頁</button>
+            <div class="game-over-buttons">
+                <button onclick="backToHomepage()">立即返回主頁</button>
+                <button onclick="window.location.href='/leaderboard'" class="leaderboard-button">查看排行榜</button>
+            </div>
         `;
     }
     
-    // 設置5秒後自動返回主頁的計時器
+    // 設置自動返回主頁的計時器
     let countdown = 100;
     const redirectMessage = document.getElementById('redirect-message');
     

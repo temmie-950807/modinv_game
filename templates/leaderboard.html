@@ -1,0 +1,88 @@
+<!-- templates/leaderboard.html -->
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模反元素競賽 - 排行榜</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/leaderboard.css') }}">
+</head>
+<body>
+    <h1>模反元素數學競賽</h1>
+    
+    <div class="container">
+        <div class="header">
+            <h2>玩家排行榜</h2>
+            <div class="stats-summary">
+                <div class="stat-item">
+                    <span class="label">總玩家數:</span>
+                    <span id="total-players" class="value">--</span>
+                </div>
+                <div class="stat-item">
+                    <span class="label">平均 Rating:</span>
+                    <span id="average-rating" class="value">--</span>
+                </div>
+                <div class="stat-item">
+                    <span class="label">最高 Rating:</span>
+                    <span id="highest-rating" class="value">--</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="search-filter">
+            <input type="text" id="search-input" placeholder="搜尋玩家名稱...">
+        </div>
+        
+        <div class="leaderboard-table-container">
+            <table class="leaderboard-table">
+                <thead>
+                    <tr>
+                        <th>排名</th>
+                        <th>玩家</th>
+                        <th>Rating</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body">
+                    <!-- 排行榜數據將動態插入 -->
+                    <tr class="loading-row">
+                        <td colspan="3">載入中...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="rating-info">
+            <h3>Rating 等級說明</h3>
+            <div class="rating-tiers">
+                <div class="tier">
+                    <span class="tier-name">新手</span>
+                    <span class="tier-range">0-1399</span>
+                    <div class="tier-color" style="background-color: black;"></div>
+                </div>
+                <div class="tier">
+                    <span class="tier-name">專家</span>
+                    <span class="tier-range">1400-1599</span>
+                    <div class="tier-color" style="background-color: #03A89E;"></div>
+                </div>
+                <div class="tier">
+                    <span class="tier-name">精通</span>
+                    <span class="tier-range">1600-1899</span>
+                    <div class="tier-color" style="background-color: blue;"></div>
+                </div>
+                <div class="tier">
+                    <span class="tier-name">大師</span>
+                    <span class="tier-range">1900+</span>
+                    <div class="tier-color" style="background-color: #a0a;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="action-buttons">
+            <a href="/" class="button">返回主頁</a>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/leaderboard.js') }}"></script>
+</body>
+</html>
