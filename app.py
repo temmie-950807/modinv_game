@@ -28,7 +28,7 @@ DIFFICULTY_BOUNDS = {
     'medium':  100, # a,b < 100
     'hard':    200  # a,b < 200
 }
-GAME_MODES = {'first', 'speed'}          # first = 搶快；speed = 比速度
+GAME_MODES = {'first', 'speed', 'practice'}  # first = 搶快；speed = 比速度；practice = 練習
 
 # 遊戲房間數據
 rooms = {}
@@ -158,7 +158,7 @@ def create_room():
     difficulty = request.form.get('difficulty', 'easy')
     game_mode = request.form.get('game_mode', 'first')
     game_time = request.form.get('game_time', '30')
-    question_count = int(request.form.get('question_count', '7'))  # 預設為7題
+    question_count = int(request.form.get('question_count', '7'))
     
     if not room_id:
         # 創建一個6位數的隨機房間ID
@@ -169,6 +169,9 @@ def create_room():
     
     session['username'] = username
     session['room_id'] = room_id
+    
+    # 設置房間屬性，包括是否為練習模式
+    is_practice = game_mode == 'practice'
     
     rooms[room_id] = {
         'players': [username],
@@ -182,9 +185,10 @@ def create_room():
         'difficulty': difficulty,
         'game_mode': game_mode,
         'game_time': game_time,
-        'question_count': question_count,  # 新增問題數量設定
+        'question_count': question_count,
         'correct_order': [],        # 比速度用
-        'first_correct_done': False # 搶快用
+        'first_correct_done': False, # 搶快用
+        'is_practice': is_practice   # 標記是否為練習模式
     }
     
     return jsonify({'room_id': room_id})
@@ -202,6 +206,10 @@ def join_existing_room():
     
     if rooms[room_id]["game_started"] == True:
         return jsonify({'error': '遊戲已經開始，無法加入'})
+    
+    # 檢查是否為練習模式房間，練習模式只允許創建者一人
+    if rooms[room_id].get('is_practice', False) or rooms[room_id]['game_mode'] == 'practice':
+        return jsonify({'error': '此為練習模式房間，不允許其他玩家加入'})
     
     if len(rooms[room_id]['players']) >= 10:
         return jsonify({'error': '房間已滿'})
@@ -325,9 +333,14 @@ def handle_player_ready():
     rooms[room_id]['ready'][username] = True
     
     # 檢查是否所有玩家都準備好了
-    all_ready = len(rooms[room_id]['ready']) == len(rooms[room_id]['players']) and len(rooms[room_id]['players'])
+    all_ready = len(rooms[room_id]['ready']) == len(rooms[room_id]['players'])
     
-    if all_ready and not rooms[room_id]['game_started']:
+    # 檢查玩家人數是否滿足要求：練習模式允許單人，其他模式需要至少兩人
+    game_mode = rooms[room_id]['game_mode']
+    min_players = 1 if game_mode == 'practice' else 2
+    enough_players = len(rooms[room_id]['players']) >= min_players
+    
+    if all_ready and enough_players and not rooms[room_id]['game_started']:
         emit('player_ready_status', {
             'username': username,
             'ready_count': len(rooms[room_id]['ready']),
@@ -336,11 +349,19 @@ def handle_player_ready():
         rooms[room_id]['game_started'] = True
         start_game(room_id)
     else:
-        emit('player_ready_status', {
-            'username': username,
-            'ready_count': len(rooms[room_id]['ready']),
-            'total_players': len(rooms[room_id]['players'])
-        }, room=room_id)
+        # 如果準備好了但人數不足，發送特殊消息
+        if all_ready and not enough_players and game_mode != 'practice':
+            emit('not_enough_players', {
+                'min_players': min_players,
+                'current_players': len(rooms[room_id]['players']),
+                'game_mode': rooms[room_id]['game_mode']
+            }, room=room_id)
+        else:
+            emit('player_ready_status', {
+                'username': username,
+                'ready_count': len(rooms[room_id]['ready']),
+                'total_players': len(rooms[room_id]['players'])
+            }, room=room_id)
 
 # 修改 start_game 函數，加入倒數計時功能
 def start_game(room_id):
@@ -348,6 +369,7 @@ def start_game(room_id):
     if room_id not in rooms:
         return
     
+    game_mode = rooms[room_id]['game_mode']
     rooms[room_id]['question_number'] = 1
     rooms[room_id]['scores'] = {player: 0 for player in rooms[room_id]['players']}
     rooms[room_id]['answers'] = {}
@@ -358,7 +380,7 @@ def start_game(room_id):
     # 等待5秒後開始第一題
     socketio.sleep(5)
     
-    emit('game_started', room=room_id)
+    emit('game_started', {'game_mode': game_mode}, room=room_id)
     next_question(room_id)
 
 # 修改 next_question 函數，檢查題目數量
@@ -452,7 +474,7 @@ def end_game(room_id):
         'ready':        rooms[room_id]['ready'],
         'game_started': rooms[room_id]['game_started'],
         'ratings':      ratings,
-        'room_id':      room_id
+        'game_mode':    rooms[room_id]['game_mode']  # 添加遊戲模式信息
     }, room=room_id)
 
     # 6. 重置房間遊戲狀態（保留玩家列表，但清空準備/問題狀態）
@@ -589,14 +611,33 @@ def game():
     
     return render_template('game.html')
 
-# 修改 app.py 中的相關函數
-
 @app.route('/get_room_id')
 def get_room_id():
-    """獲取當前會話中的房間ID"""
-    if 'room_id' in session:
-        return jsonify({'room_id': session['room_id']})
+    """獲取當前會話中的房間ID和基本信息"""
+    if 'room_id' in session and session['room_id'] in rooms:
+        room_id = session['room_id']
+        return jsonify({
+            'room_id': room_id,
+            'game_mode': rooms[room_id]['game_mode']
+        })
     return jsonify({'error': '未找到房間ID'})
+
+@app.route('/get_room_info')
+def get_room_info():
+    """獲取當前會話中的房間詳細信息"""
+    if 'room_id' in session and session['room_id'] in rooms:
+        room_id = session['room_id']
+        room = rooms[room_id]
+        return jsonify({
+            'room_id': room_id,
+            'game_mode': room['game_mode'],
+            'difficulty': room['difficulty'],
+            'game_time': room['game_time'],
+            'question_count': room['question_count'],
+            'players_count': len(room['players']),
+            'is_practice': room.get('is_practice', room['game_mode'] == 'practice')
+        })
+    return jsonify({'error': '未找到房間信息'})
 
 # Add this route to app.py
 @app.route('/leaderboard')

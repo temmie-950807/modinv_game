@@ -15,6 +15,7 @@
     <div class="container">
         <div class="room-info">
             <h3>房間號碼: <span id="room-id"></span></h3>
+            <div id="game-mode-display"></div>
         </div>
         
         <div class="players" id="player-list">
@@ -30,7 +31,12 @@
             </div>
             
             <div class="waiting-message">
-                等待兩名玩家準備...
+                等待玩家準備...
+            </div>
+            <div id="practice-mode-info" style="display: none; margin-top: 10px; padding: 10px; background-color: #e8f5e9; border-radius: 4px;">
+                <h4>練習模式說明</h4>
+                <p>在練習模式下，你可以單獨練習計算模反元素，無需等待其他玩家加入。</p>
+                <p>點擊「準備開始」按鈕即可開始練習。</p>
             </div>
             
             <div class="action-buttons">
@@ -87,5 +93,32 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/game.js') }}"></script>
+    <script>
+        // 添加這段代碼到現有的 game.js 中或在 HTML 文件底部添加此 script 標籤
+        document.addEventListener('DOMContentLoaded', function() {
+            // 檢查房間模式，顯示對應提示
+            fetch('/get_room_info')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) return;
+                    
+                    const gameModeDisplay = document.getElementById('game-mode-display');
+                    const practiceInfo = document.getElementById('practice-mode-info');
+                    
+                    // 顯示遊戲模式
+                    if (data.game_mode === 'practice') {
+                        gameModeDisplay.innerHTML = '<span style="background-color: #e8f5e9; padding: 2px 5px; border-radius: 3px;">練習模式</span>';
+                        practiceInfo.style.display = 'block';
+                    } else if (data.game_mode === 'first') {
+                        gameModeDisplay.innerHTML = '<span style="background-color: #e3f2fd; padding: 2px 5px; border-radius: 3px;">搶快模式</span>';
+                    } else if (data.game_mode === 'speed') {
+                        gameModeDisplay.innerHTML = '<span style="background-color: #fff3e0; padding: 2px 5px; border-radius: 3px;">比速度模式</span>';
+                    }
+                })
+                .catch(error => {
+                    console.error('獲取房間信息失敗:', error);
+                });
+        });
+        </script>
 </body>
 </html>

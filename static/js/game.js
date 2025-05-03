@@ -635,3 +635,23 @@ socket.on('player_ready_status', function(data) {
         }
     });
 });
+
+// 添加「人數不足」事件監聽器
+socket.on('not_enough_players', function(data) {
+    console.log('人數不足:', data);
+    document.querySelector('.waiting-message').innerHTML = 
+        `<span style="color: red;">人數不足！${data.game_mode === 'first' ? '搶快' : '比速度'}模式需要至少 ${data.min_players} 名玩家，目前只有 ${data.current_players} 名。請等待更多玩家加入。</span>`;
+});
+
+// 修改房間狀態更新處理，添加練習模式信息
+socket.on('room_status', function(data) {
+    console.log('房間狀態:', data);
+    
+    // 檢測是否為練習模式
+    if (data.game_mode === 'practice') {
+        document.querySelector('.waiting-message').innerHTML = 
+            '練習模式：只需點擊「準備開始」即可開始遊戲';
+    }
+    
+    updatePlayerList(data.players, data.scores, data.ready || {}, data.ratings, data.game_started);
+});
