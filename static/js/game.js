@@ -8,6 +8,14 @@ let gameInProgress = false;
 let correctAnswerUsername = null;
 let redirectTimer = null;
 
+// 定義一個函數來根據 rating 設定對應的 class
+function getRatingClass(rating) {
+    if (rating >= 1900) return 'candidate_master';
+    if (rating >= 1600) return 'expert';
+    if (rating >= 1400) return 'specialist';
+    return '';
+}
+
 // 當連接到服務器時
 socket.on('connect', function() {
     console.log('已連接到服務器');
@@ -47,12 +55,16 @@ socket.on('player_ready_status', function(data) {
     document.querySelector('.waiting-message').textContent = 
         `等待玩家準備... (${data.ready_count}/${data.total_players})`;
         
-    // 更新玩家準備狀態
+    // 更新玩家準備狀態 - 注意：現在需要找到正確的玩家卡片
     const playerCards = document.querySelectorAll('.player-card');
     playerCards.forEach(card => {
-        const playerName = card.querySelector('.player-name').textContent.replace(' (你)', '');
-        if (playerName === data.username) {
-            card.classList.add('ready');
+        // 獲取玩家卡片中的玩家名稱，方法改變
+        const playerNameElement = card.querySelector('.player-name');
+        if (playerNameElement) {
+            const playerName = playerNameElement.textContent.replace(' (你)', '');
+            if (playerName === data.username) {
+                card.classList.add('ready');
+            }
         }
     });
 });
@@ -65,9 +77,9 @@ socket.on('game_started', function() {
     document.getElementById('game-screen').style.display = 'block';
     document.querySelectorAll('.player-card').forEach(card => {
         card.classList.remove('answered-correctly',
-                                'answered-wrong',
-                                'answered-starbrust',
-                            'ready');
+                             'answered-wrong',
+                             'answered-starbrust',
+                             'ready');
         card.classList.add('answered-starbrust');
     });
 });
@@ -76,7 +88,7 @@ socket.on('game_started', function() {
 socket.on('new_question', function(data) {
     console.log('新問題:', data);
     isAnswered = false;
-    timeLeft = data.time_limit || 100;
+    timeLeft = data.game_time || 30;
     gameMode = data.game_mode;
     correctAnswerUsername = null;
     
@@ -90,7 +102,7 @@ socket.on('new_question', function(data) {
     updateTimer();
     countdownInterval = setInterval(updateTimer, 1000);
     
-    document.getElementById('question-progress').textContent = `問題 ${data.question_number}/7`;
+    document.getElementById('question-progress').textContent = `問題 ${data.question_number}/${data.question_count || 7}`;
     document.getElementById('question-text').innerHTML = `
         求 ${data.a} 在模 ${data.p} 下的模反元素。<br>
         <small>(即求 x，使得 ${data.a} · x ≡ 1 (mod ${data.p}))</small>
@@ -106,9 +118,9 @@ socket.on('new_question', function(data) {
     // 重置玩家卡片的答對標記
     document.querySelectorAll('.player-card').forEach(card => {
         card.classList.remove('answered-correctly',
-                                'answered-wrong',
-                                'answered-starbrust',
-                                'ready');
+                             'answered-wrong',
+                             'answered-starbrust',
+                             'ready');
         card.classList.add('answered-starbrust');
     });
 });
@@ -130,11 +142,19 @@ function updateTimer() {
 // 玩家答題
 socket.on('player_answered', function(data) {
     console.log('玩家答題:', data);
-    const card = [...document.querySelectorAll('.player-card')]
-        .find(c => c.querySelector('.player-name').textContent.replace(' (你)', '') === data.username);
-    // if (card) {
-    //     card.classList.add('answered-starbrust');
-    // }
+    // 找到玩家卡片，使用更可靠的方法
+    const playerCards = document.querySelectorAll('.player-card');
+    for (const card of playerCards) {
+        // 查找玩家名稱元素
+        const nameElements = card.querySelectorAll('span');
+        for (const element of nameElements) {
+            // 檢查文本內容是否包含玩家名稱
+            if (element.textContent.includes(data.username)) {
+                card.classList.add('answered-starbrust');
+                break;
+            }
+        }
+    }
 });
 
 // 時間到
@@ -153,14 +173,25 @@ socket.on('someone_answered_correctly', function(data) {
     console.log('有人回答正確:', data);
     correctAnswerUsername = data.username;
     
-    // 標記答對的玩家
+    // 標記答對的玩家 - 使用更可靠的方法
     const playerCards = document.querySelectorAll('.player-card');
-    playerCards.forEach(card => {
-        const playerName = card.querySelector('.player-name').textContent.replace(' (你)', '');
-        if (playerName === data.username) {
-            card.classList.add('answered-correctly');
+    for (const card of playerCards) {
+        // 查找所有文本元素
+        const textElements = card.querySelectorAll('span');
+        let found = false;
+        
+        // 檢查每個文本元素是否包含玩家名稱
+        for (const element of textElements) {
+            if (element.textContent.includes(data.username)) {
+                card.classList.remove('answered-starbrust');
+                card.classList.add('answered-correctly');
+                found = true;
+                break;
+            }
         }
-    });
+        
+        if (found) break;
+    }
     
     if (data.username !== myUsername && gameMode === 'first') {
         document.getElementById('answer-input').disabled = true;
@@ -170,13 +201,25 @@ socket.on('someone_answered_correctly', function(data) {
 
 socket.on('someone_answered_incorrectly', function(data) {
     console.log('有人回答錯誤:', data);
+    // 標記答錯的玩家 - 使用更可靠的方法
     const playerCards = document.querySelectorAll('.player-card');
-    playerCards.forEach(card => {
-        const playerName = card.querySelector('.player-name').textContent.replace(' (你)', '');
-        if (playerName === data.username) {
-            card.classList.add('answered-wrong');
+    for (const card of playerCards) {
+        // 查找所有文本元素
+        const textElements = card.querySelectorAll('span');
+        let found = false;
+        
+        // 檢查每個文本元素是否包含玩家名稱
+        for (const element of textElements) {
+            if (element.textContent.includes(data.username)) {
+                card.classList.remove('answered-starbrust');
+                card.classList.add('answered-wrong');
+                found = true;
+                break;
+            }
         }
-    });
+        
+        if (found) break;
+    }
 });
 
 // 答案被拒絕
@@ -190,14 +233,28 @@ socket.on('answer_result', function(data) {
     console.log('答案結果:', data);
     isAnswered = true;
 
-    const card = [...document.querySelectorAll('.player-card')].find(c => c.querySelector('.player-name').textContent.replace(' (你)', '') === data.username);
-    if (!card) return;
+    // 尋找自己的卡片
+    const playerCards = document.querySelectorAll('.player-card');
+    let myCard = null;
+    
+    for (const card of playerCards) {
+        const textElements = card.querySelectorAll('span');
+        for (const element of textElements) {
+            if (element.textContent.includes(myUsername)) {
+                myCard = card;
+                break;
+            }
+        }
+        if (myCard) break;
+    }
 
-    card.classList.remove('answered-starbrust');
-    if (data.correct) {
-        card.classList.add('answered-correctly');
-    } else {
-        card.classList.add('answered-wrong');
+    if (myCard) {
+        myCard.classList.remove('answered-starbrust');
+        if (data.correct) {
+            myCard.classList.add('answered-correctly');
+        } else {
+            myCard.classList.add('answered-wrong');
+        }
     }
     
     const resultContainer = document.getElementById('result-container');
@@ -319,50 +376,6 @@ socket.on('next_question_countdown', function(data) {
     }, 1000);
 });
 
-// 修改新問題處理，添加題目計數
-socket.on('new_question', function(data) {
-    console.log('新問題:', data);
-    isAnswered = false;
-    console.log("game_time", data.game_time)
-    timeLeft = data.game_time || 30;
-    gameMode = data.game_mode;
-    correctAnswerUsername = null;
-    
-    // 重置UI
-    document.getElementById('opponent-answered').style.display = 'none';
-    
-    // 重置計時器
-    if (countdownInterval) {
-        clearInterval(countdownInterval);
-    }
-    
-    // 啟動新計時器
-    updateTimer();
-    countdownInterval = setInterval(updateTimer, 1000);
-    
-    document.getElementById('question-progress').textContent = `問題 ${data.question_number}/${data.question_count}`;
-    document.getElementById('question-text').innerHTML = `
-        求 ${data.a} 在模 ${data.p} 下的模反元素。<br>
-        <small>(即求 x，使得 ${data.a} · x ≡ 1 (mod ${data.p}))</small>
-    `;
-    
-    document.getElementById('answer-input').value = '';
-    document.getElementById('answer-input').disabled = false;
-    document.getElementById('submit-button').disabled = false;
-    document.getElementById('question-container').style.display = 'block';
-    document.getElementById('result-container').style.display = 'none';
-    document.getElementById('time-up-message').style.display = 'none';
-    
-    // 重置玩家卡片的答對標記
-    const playerCards = document.querySelectorAll('.player-card');
-    playerCards.forEach(card => {
-        card.classList.remove('answered-correctly',
-                'answered-wrong',
-                'answered-starbrust',
-                'ready');
-    });
-});
-
 // 用戶離開
 socket.on('user_left', function(data) {
     console.log('用戶離開:', data);
@@ -384,7 +397,7 @@ function init() {
     fetchRoomInfo();
 }
 
-// 更新玩家列表
+// 更新玩家列表 - 完全重寫
 function updatePlayerList(players, scores, readyStatus, ratings, gameStarted) {
     const container = document.getElementById('player-list');
     container.innerHTML = '';
@@ -393,32 +406,31 @@ function updatePlayerList(players, scores, readyStatus, ratings, gameStarted) {
         const card = document.createElement('div');
         card.className = 'player-card';
         if (name === myUsername) card.classList.add('current-player');
+        if (readyStatus[name]) card.classList.add('ready');
 
         // 玩家名稱 + (你)
+        const nameContainer = document.createElement('div');
+        nameContainer.className = 'username';
+        
         const nameSpan = document.createElement('span');
-        nameSpan.className = 'player-name';
+        nameSpan.className = 'player-name ' + getRatingClass(ratings[name] || 1500);
         nameSpan.textContent = name + (name === myUsername ? ' (你)' : '');
+        nameContainer.appendChild(nameSpan);
 
         // R 值
-        const ratingSpan = document.createElement('span');
+        const ratingSpan = document.createElement('div');
         ratingSpan.className = 'player-rating';
-        ratingSpan.textContent = ` R: ${ratings[name] || 1500}`;
+        ratingSpan.textContent = `R: ${ratings[name] || 1500}`;
 
         // 分數
-        const scoreSpan = document.createElement('span');
+        const scoreSpan = document.createElement('div');
         scoreSpan.className = 'player-score';
-        scoreSpan.textContent = ` 分數: ${scores[name] || 0}`;
-
-        // 準備狀態
-        const readySpan = document.createElement('span');
-        readySpan.className = 'player-ready';
-        readySpan.textContent = readyStatus[name] ? ' 已準備' : '';
+        scoreSpan.textContent = `分數: ${scores[name] || 0}`;
 
         // 組起來
-        card.appendChild(nameSpan);
+        card.appendChild(nameContainer);
         card.appendChild(ratingSpan);
         card.appendChild(scoreSpan);
-        card.appendChild(readySpan);
 
         container.appendChild(card);
     });
@@ -427,11 +439,29 @@ function updatePlayerList(players, scores, readyStatus, ratings, gameStarted) {
 // 更新玩家分數
 function updatePlayerScores(scores) {
     const playerCards = document.querySelectorAll('.player-card');
+    
     playerCards.forEach(card => {
-        const playerName = card.querySelector('.player-name').textContent.replace(' (你)', '');
-        const scoreElement = card.querySelector('.player-score');
-        if (scoreElement) {
-            scoreElement.textContent = `分數: ${scores[playerName] || 0}`;
+        // 查找所有文本元素，找到匹配玩家名稱的元素
+        const nameElements = card.querySelectorAll('span');
+        let playerName = null;
+        
+        for (const element of nameElements) {
+            const text = element.textContent.replace(' (你)', '');
+            if (scores.hasOwnProperty(text)) {
+                playerName = text;
+                break;
+            }
+        }
+        
+        if (playerName) {
+            // 找到分數元素並更新內容
+            const scoreElements = card.querySelectorAll('div');
+            for (const element of scoreElements) {
+                if (element.className === 'player-score') {
+                    element.textContent = `分數: ${scores[playerName] || 0}`;
+                    break;
+                }
+            }
         }
     });
 }
@@ -455,7 +485,17 @@ function submitAnswer() {
         return;
     }
 
-    const myCard = [...document.querySelectorAll('.player-card')].find(c => c.classList.contains('current-player'));
+    // 找到自己的卡片
+    const playerCards = document.querySelectorAll('.player-card');
+    let myCard = null;
+    
+    for (const card of playerCards) {
+        if (card.classList.contains('current-player')) {
+            myCard = card;
+            break;
+        }
+    }
+
     if (myCard) {
         myCard.classList.add('answered-starbrust');
         myCard.classList.remove('answered-wrong', 'answered-correctly');

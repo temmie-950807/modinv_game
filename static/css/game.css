@@ -65,6 +65,24 @@
 .player-card.current-player {
     border: 2px solid #4CAF50;
 }
+
+/* 確保用戶名稱顯示正確 */
+.player-card .username {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.player-card .player-name {
+    display: inline-block;
+}
+
+.player-card .player-rating,
+.player-card .player-score {
+    font-size: 14px;
+    margin: 3px 0;
+}
+
 .question-container {
     display: none;
     padding: 15px;
@@ -212,4 +230,34 @@
     font-size: 40px;
     z-index: 1000;
     text-align: center;
+}
+
+/* 用戶名稱顏色相關樣式 */
+.specialist {
+    color: #03A89E;
+}
+
+.expert {
+    color: blue;
+}
+
+.candidate_master {
+    color: #a0a;
+}
+
+/* 首頁部分的用戶名稱顯示 */
+.username-header {
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.username-header a {
+    display: inline-block;
+    margin-top: 5px;
+    text-decoration: none;
+    color: #4CAF50;
+}
+
+.username-header a:hover {
+    text-decoration: underline;
 }
