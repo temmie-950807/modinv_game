@@ -380,3 +380,45 @@ window.addEventListener('beforeunload', function() {
         rankedQueueInterval = null;
     }
 });
+
+// 添加到 index.js
+function resetRankedMatch() {
+    fetch('/reset_ranked_match', {
+        method: 'POST'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('請求失敗');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Reset ranked match response:', data);
+        alert(data.message || '已重置積分模式匹配');
+        resetQueueStatus();
+    })
+    .catch(error => {
+        console.error('重置積分模式出錯:', error);
+        alert('重置積分模式失敗，請稍後再試');
+    });
+}
+
+// 修改頁面載入時的檢查
+document.addEventListener('DOMContentLoaded', function() {
+    // 檢查是否有卡住的積分模式
+    fetch('/check_match_status', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'matched' && data.elapsed_time > 60) {
+            // 如果匹配時間超過1分鐘，顯示重置按鈕
+            document.getElementById('reset-ranked-button').style.display = 'inline-block';
+        }
+    })
+    .catch(error => {
+        console.error('檢查積分模式狀態出錯:', error);
+    });
+    
+    // 其他初始化代碼...
+});

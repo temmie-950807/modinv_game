@@ -18,9 +18,58 @@ function getRatingClass(rating) {
 }
 
 // 當連接到服務器時
+// 添加到 socket.on('connect') 事件處理中
 socket.on('connect', function() {
     console.log('已連接到服務器');
     fetchRoomInfo();
+    
+    // 檢查是否為積分模式，如果是則開始檢查倒數
+    fetch('/get_room_info')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) return;
+            
+            if (data.is_ranked || data.game_mode === 'ranked') {
+                // 啟動積分模式倒數檢查
+                rankedCountdownInterval = setInterval(function() {
+                    socket.emit('check_ranked_countdown');
+                }, 1000);
+            }
+        })
+        .catch(error => {
+            console.error('獲取房間信息出錯:', error);
+        });
+});
+
+// 添加倒數更新事件處理
+socket.on('ranked_countdown_update', function(data) {
+    const countdown = data.countdown;
+    const waitingMessage = document.querySelector('.waiting-message');
+    
+    if (countdown > 0) {
+        waitingMessage.innerHTML = `積分模式：遊戲將在 ${countdown} 秒後開始（${data.connected_players}/${data.total_players} 人已連接）`;
+    } else {
+        waitingMessage.innerHTML = '積分模式：遊戲即將開始...';
+        
+        // 清除倒數計時器
+        if (rankedCountdownInterval) {
+            clearInterval(rankedCountdownInterval);
+        }
+    }
+});
+
+// 在全局變數區域添加
+let rankedCountdownInterval = null;
+
+// 在 window.onbeforeunload 中清理
+window.addEventListener('beforeunload', function() {
+    // 清除計時器
+    if (rankedCountdownInterval) {
+        clearInterval(rankedCountdownInterval);
+    }
+    
+    // 現有的離開房間代碼
+    fetch('/leave_room', { method: 'POST' });
 });
 
 function fetchRoomInfo() {
@@ -759,3 +808,35 @@ function init() {
             console.error('獲取房間信息出錯:', error);
         });
 }
+
+// 添加積分模式全部玩家已連接事件處理
+socket.on('ranked_all_connected', function(data) {
+    console.log('積分模式：所有玩家已連接，倒數開始');
+    const rankedInfo = document.getElementById('ranked-countdown-info');
+    if (rankedInfo) {
+        rankedInfo.style.display = 'block';
+    }
+    
+    // 顯示玩家名稱
+    const playerStatus = document.getElementById('ranked-player-status');
+    if (playerStatus) {
+        playerStatus.textContent = `玩家 ${data.players.join(' 和 ')} 已連接`;
+    }
+    
+    // 開始倒數
+    let countdown = data.countdown;
+    const countdownTimer = document.getElementById('ranked-countdown-timer');
+    if (countdownTimer) {
+        countdownTimer.textContent = countdown;
+        
+        const countdownInterval = setInterval(function() {
+            countdown--;
+            countdownTimer.textContent = countdown;
+            
+            if (countdown <= 0) {
+                clearInterval(countdownInterval);
+                // 倒數結束，等待服務器啟動遊戲
+            }
+        }, 1000);
+    }
+});
