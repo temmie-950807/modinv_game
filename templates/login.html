@@ -1,12 +1,34 @@
-<form method="post">
-  <input name="username" placeholder="帳號" required><br>
-  <input name="password" type="password" placeholder="密碼" required><br>
-
-  <!-- 新增：記住我 -->
-  <input type="checkbox" id="remember" name="remember" value="1">
-  <label for="remember">記住我，30 天內免登入</label><br>
-
-  <button type="submit">登入</button>
-</form>
-<p style="color:red;">{{ error }}</p>
-<p>還沒有帳號？<a href="{{ url_for('register') }}">註冊</a></p>
+<!-- templates/login.html -->
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模反元素競賽 - 登入</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>模反元素數學競賽</h1>
+    
+    <div class="container">
+        <h2>登入</h2>
+        <form method="post">
+            <div class="form-group">
+                <label for="username">帳號：</label>
+                <input name="username" id="username" placeholder="請輸入帳號" required>
+            </div>
+            <div class="form-group">
+                <label for="password">密碼：</label>
+                <input name="password" id="password" type="password" placeholder="請輸入密碼" required>
+            </div>
+            <div class="form-group">
+                <input type="checkbox" id="remember" name="remember" value="1">
+                <label for="remember">記住我，30 天內免登入</label>
+            </div>
+            <button type="submit">登入</button>
+        </form>
+        <p class="error">{{ error }}</p>
+        <p>還沒有帳號？<a href="{{ url_for('register') }}">註冊</a></p>
+    </div>
+</body>
+</html>

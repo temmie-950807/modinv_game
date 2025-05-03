@@ -37,21 +37,58 @@ button.secondary:hover {
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
 }
 
-/* rating */
+/* 用戶名稱顏色 */
 .username {
-    color: black; /* 預設顏色 */
+    font-weight: bold;
 }
 
-.username .specialist {
-    color: #03A89E; /* rating >= 1400 時的顏色 */
+/* rating < 1400 時的顏色 */
+.username {
+    color: black;
 }
 
-.username .expert {
-    color: blue; /* rating >= 1600 時的顏色 */
+/* rating >= 1400 時的顏色 */
+.specialist {
+    color: #03A89E;
 }
 
-.username .candidate_master {
-    color: #a0a; /* rating >= 1900 時的顏色 */
+/* rating >= 1600 時的顏色 */
+.expert {
+    color: blue;
+}
+
+/* rating >= 1900 時的顏色 */
+.candidate_master {
+    color: #a0a;
+}
+
+/* 表單樣式 */
+.form-group {
+    margin-bottom: 15px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+input[type="text"],
+input[name="username"],
+input[name="password"],
+input[type="number"],
+select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.error {
+    color: red;
+    margin-top: 10px;
 }
