@@ -21,7 +21,7 @@ function createRoom() {
     formData.append('difficulty', difficulty);
     formData.append('game_mode', mode);
     formData.append('question_count', questionCount);
-    formData.append('game-time', gameTime);
+    formData.append('game_time', gameTime);  // 將 'game-time' 改為 'game_time'
     const roomId = document.getElementById('create-room-id').value.trim();
     const errorElement = document.getElementById('create-error');
     
