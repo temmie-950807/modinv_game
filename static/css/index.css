@@ -33,19 +33,6 @@ select, input[type="text"] {
 .form-options .form-group {
     flex: 1;
 }
-button {
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    padding: 10px 15px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 16px;
-    margin-top: 10px;
-}
-button:hover {
-    background-color: #45a049;
-}
 .tab {
     overflow: hidden;
     border: 1px solid #ccc;
