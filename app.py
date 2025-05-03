@@ -364,39 +364,50 @@ def start_game(room_id):
 # 修改 next_question 函數，檢查題目數量
 def next_question(room_id):
     """生成下一個問題"""
+    print(f"進入 next_question 函數，房間 {room_id}，問題編號 {rooms[room_id]['question_number'] if room_id in rooms else 'N/A'}")
+    
+    # 檢查房間是否存在
     if room_id not in rooms:
+        print(f"房間 {room_id} 不存在，退出 next_question")
         return
     
+    # 檢查是否達到最大問題數量
     if rooms[room_id]['question_number'] > rooms[room_id]['question_count']:
+        print(f"達到最大問題數量，結束遊戲，房間 {room_id}")
         end_game(room_id)
         return
     
-    # 發送下一題倒數
+    # 發送下一題倒數提示
     if rooms[room_id]['question_number'] > 1:
-        emit('next_question_countdown', {'countdown': 3}, room=room_id)
+        print(f"發送下一題倒數，房間 {room_id}")
+        socketio.emit('next_question_countdown', {'countdown': 3}, room=room_id)
         socketio.sleep(3)
     
-    rooms[room_id]['timer_abort'] = False
-    rooms[room_id]['first_correct_done'] = False # ★ 每題重置
+    # 重置房間狀態
+    print(f"重置房間狀態，准備新問題，房間 {room_id}")
+    rooms[room_id]['first_correct_done'] = False
+    rooms[room_id]['answers'] = {}
+    rooms[room_id]['correct_order'] = []
+    
+    # 生成新問題
     question = generate_question(rooms[room_id]['difficulty'])
     rooms[room_id]['current_question'] = question
-    rooms[room_id]['answers'] = {}
-    rooms[room_id]['correct_order'] = []     # 比速度用
     
-    rooms[room_id]['timer_abort'] = False
+    # 啟動新的問題計時器
     rooms[room_id]['question_timer'] = socketio.start_background_task(
         question_timeout, room_id, rooms[room_id]['question_number']
     )
     
-    emit('new_question', {
+    # 發送新問題到前端
+    print(f"發送新問題到前端，房間 {room_id}，問題編號 {rooms[room_id]['question_number']}")
+    socketio.emit('new_question', {
         'question_number': rooms[room_id]['question_number'],
-        'question_count': rooms[room_id]['question_count'],  # 添加總題數
+        'question_count': rooms[room_id]['question_count'],
         'p': question['p'],
         'a': question['a'],
         'game_mode': rooms[room_id]['game_mode'],
         'game_time': rooms[room_id]['game_time'],
     }, room=room_id)
-
 
 def end_game(room_id):
     """結束遊戲並計算最終結果"""
@@ -451,24 +462,33 @@ def end_game(room_id):
     rooms[room_id]['question_number']  = 0
 
 def question_timeout(room_id, question_number):
-    socketio.sleep(rooms[room_id]['game_time'])
+    """處理問題計時，當時間到時自動進入下一題"""
+    # 等待指定的遊戲時間
+    socketio.sleep(int(rooms[room_id]['game_time']))
     
+    # 檢查房間是否還存在
     if room_id not in rooms:
         return
     
-    # 確保我們仍然在同一個問題
+    # 檢查是否仍在同一個問題（避免重複處理）
     if rooms[room_id]['question_number'] == question_number:
         # 通知所有玩家時間到
         socketio.emit('time_up', {
             'correct_answer': rooms[room_id]['current_question']['answer']
         }, room=room_id)
         
-        # 延遲一下再進入下一題
+        # 在前端顯示答案後短暫延遲
         socketio.sleep(3)
         
-        if room_id in rooms:  # 再次確認房間仍然存在
+        # 再次檢查房間是否存在，以防在延遲期間房間被刪除
+        if room_id in rooms and rooms[room_id]['question_number'] == question_number:
+            # 更新問題編號並進入下一題
             rooms[room_id]['question_number'] += 1
-            next_question(room_id)
+            
+            # 使用獨立的任務啟動下一題，避免阻塞當前線程
+            socketio.start_background_task(
+                next_question, room_id
+            )
 
 @socketio.on('submit_answer')
 def handle_answer(data):
@@ -538,13 +558,23 @@ def handle_answer(data):
 
     # 下一題條件
     everyone_done = len(room['answers']) == len(room['players'])
-    if (
-        (mode == 'first' and room['first_correct_done'])  # 搶快：有人搶答成功
-        or everyone_done                                  # 速度：都答完
-    ):
-        room['question_number'] += 1
+    needs_next = False
+
+    if mode == 'first' and room['first_correct_done']:
+        needs_next = True  # 搶快模式且有人答對
+    elif everyone_done:
+        needs_next = True  # 所有人都已作答
+        
+    if needs_next:
+        current_question = room['question_number']  # 記錄當前問題編號
+        room['question_number'] += 1  # 增加問題編號
+        
+        # 使用短暫延遲讓玩家看到結果
         socketio.sleep(3)
-        next_question(room_id)
+        
+        # 確保仍在相同問題（沒有由其他地方觸發下一題）
+        if room_id in rooms and room['question_number'] == current_question + 1:
+            next_question(room_id)
 
 @app.route('/game')
 def game():

@@ -134,6 +134,7 @@ function updateTimer() {
         document.getElementById('timer').textContent = '時間到！';
         document.getElementById('answer-input').disabled = true;
         document.getElementById('submit-button').disabled = true;
+        return;  // 確保時間到後不再遞減 timeLeft
     }
     
     timeLeft--;
@@ -158,6 +159,7 @@ socket.on('player_answered', function(data) {
 });
 
 // 時間到
+// 時間到
 socket.on('time_up', function(data) {
     console.log('時間到:', data);
     clearInterval(countdownInterval);
@@ -166,6 +168,15 @@ socket.on('time_up', function(data) {
     document.getElementById('time-up-message').textContent = `時間到！正確答案是: ${data.correct_answer}`;
     document.getElementById('answer-input').disabled = true;
     document.getElementById('submit-button').disabled = true;
+    
+    // 添加 debug 訊息，確認接收到時間到事件
+    console.log('已接收時間到事件，等待服務器發送下一題...');
+});
+
+// 添加 debug 日誌，確認收到新問題
+socket.on('new_question', function(data) {
+    console.log('收到新問題:', data);
+    // 其餘現有代碼不變...
 });
 
 // 有人回答正確
