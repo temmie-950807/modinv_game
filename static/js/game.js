@@ -88,7 +88,7 @@ socket.on('game_started', function() {
 socket.on('new_question', function(data) {
     console.log('新問題:', data);
     isAnswered = false;
-    timeLeft = data.game_time || 30;
+    timeLeft = data.game_time;
     gameMode = data.game_mode;
     correctAnswerUsername = null;
     

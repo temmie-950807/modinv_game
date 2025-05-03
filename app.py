@@ -1,125 +1,37 @@
 # app.py
-import os, json, time, random, math, secrets
+import os, json, time, random, math, secrets, sqlite3
 from datetime import timedelta
 from flask import Flask, render_template, request, session, jsonify, redirect, url_for
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 
+# 引入我們的 SQLite 資料庫函數
+from db_utils import init_db, find_account, register_account, verify_account, update_ratings
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get("SECRET_KEY", "replace‑me‑with‑a‑real‑secret")
 socketio = SocketIO(app, cors_allowed_origins="*")
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 
-# game mode
+# 確保資料庫初始化
+init_db()
 
+# game mode
 @app.before_request
 def refresh_permanent_session():
     if 'username' in session:
         session.permanent = True
 
-ACCOUNTS_FILE = os.path.join(os.path.dirname(__file__), 'accounts.json')
-
 DIFFICULTY_BOUNDS = {
     'easy':    50,          # a,b < 50
-    'medium':  1000,        # a,b < 1 000
-    'hard':    48763    # a,b < 1 000 000 000
+    'medium':  1000,        # a,b < 1 000
+    'hard':    48763    # a,b < 1 000 000 000
 }
 GAME_MODES = {'first', 'speed'}          # first = 搶快；speed = 比速度
 
 # 遊戲房間數據
 rooms = {}
-
-def load_accounts():
-    if not os.path.exists(ACCOUNTS_FILE):
-        with open(ACCOUNTS_FILE,'w',encoding='utf-8') as f:
-            json.dump([], f)
-    with open(ACCOUNTS_FILE,'r',encoding='utf-8') as f:
-        return json.load(f)
-
-def save_accounts(accs):
-    with open(ACCOUNTS_FILE,'w',encoding='utf-8') as f:
-        json.dump(accs, f, ensure_ascii=False, indent=2)
-
-def find_account(username):
-    return next((u for u in load_accounts() if u['username']==username), None)
-
-def register_account(username, password):
-    if find_account(username):
-        return False
-    accs = load_accounts()
-    accs.append({
-        'username': username,
-        'pw_hash': generate_password_hash(password),
-        'rating': 1500
-    })
-    save_accounts(accs)
-    return True
-def verify_account(username, password):
-    u = find_account(username)
-    return u and check_password_hash(u['pw_hash'], password)
-
-def update_ratings(score_dict):
-    """
-    score_dict: dict of username → 得分（比賽中的實際分數）
-    支援多人比賽，採用正規化 Elo：
-      S_i_norm = Σ_{j≠i} s_ij  ／ (n-1)
-      E_i_norm = Σ_{j≠i} 1/(1+10^((R_j-R_i)/400)) ／ (n-1)
-      R_i ← R_i + K * (S_i_norm - E_i_norm)
-    其中 s_ij = 1 if player i 得分 > player j 得分,
-                  0.5 if 相同,
-                  0 otherwise.
-    """
-    accs = load_accounts()
-    # 取出在 accounts.json 裡的帳號 dict，方便原地修改
-    user_map = {u['username']: u for u in accs}
-
-    players = list(score_dict.keys())
-    n = len(players)
-    if n < 2:
-        # 少於 2 人不更新
-        return
-
-    # K 值 — 和雙人一樣
-    K = 32
-
-    # 1) 準備每人的舊 R
-    R = {u: user_map[u]['rating'] for u in players}
-
-    # 2) 計算每人 「實際對戰得分總和」 Σ s_ij
-    actual = {}
-    for i in players:
-        si = score_dict[i]
-        total = 0.0
-        for j in players:
-            if i == j: continue
-            sj = score_dict[j]
-            if   si >  sj: total += 1
-            elif si == sj: total += 0.5
-        actual[i] = total
-
-    # 3) 計算每人 「期望得分總和」 Σ E_ij
-    expected = {}
-    for i in players:
-        Ri = R[i]
-        esum = 0.0
-        for j in players:
-            if i == j: continue
-            Rj = R[j]
-            esum += 1 / (1 + 10 ** ((Rj - Ri) / 400))
-        expected[i] = esum
-
-    # 4) 更新：先正規化，再按 Elo 公式改變 rating
-    for u in players:
-        S_norm = actual[u]   / (n - 1)
-        E_norm = expected[u] / (n - 1)
-        delta  = K * (S_norm - E_norm)
-        new_R  = round(R[u] + delta)
-        user_map[u]['rating'] = new_R
-
-    # 5) 寫回檔案
-    save_accounts(accs)
-
 
 def login_required(f):
     @wraps(f)
@@ -221,10 +133,20 @@ def index():
     username = session['username']
     user = find_account(username)
     rating = user['rating'] if user else 1500
+    
+    # 提供 rating_class 給模板
+    rating_class = ""
+    if rating >= 1900:
+        rating_class = "candidate_master"
+    elif rating >= 1600:
+        rating_class = "expert"
+    elif rating >= 1400:
+        rating_class = "specialist"
+    
     return render_template('index.html',
                            username=username,
-                           rating=rating)
-    # 清除任何現有的會話數據
+                           rating=rating,
+                           rating_class=rating_class)
 
 # 修改 create_room 函數，添加 question_count 參數
 @app.route('/create_room', methods=['POST'])
@@ -278,9 +200,7 @@ def join_existing_room():
     """加入現有遊戲房間"""
     username = session['username']
     room_id = request.form.get('room_id')
-
-    print("rooms", rooms)
-
+    
     # 檢查用戶名長度
     if len(username) > 10:
         return jsonify({'error': '用戶名最多10個字符'})
@@ -511,13 +431,16 @@ def end_game(room_id):
             'scores': scores
         }
     
-    update_ratings(scores)  # 定義見上 :contentReference[oaicite:0]{index=0}:contentReference[oaicite:1]{index=1}
+    update_ratings(scores)
 
     # 3. 廣播 game_over
     socketio.emit('game_over', result, room=room_id)
 
     # 4. 準備最新的 ratings dict
-    ratings = {u: find_account(u)['rating'] for u in rooms[room_id]['players']}
+    ratings = {}
+    for u in rooms[room_id]['players']:
+        user = find_account(u)
+        ratings[u] = user['rating'] if user else 1500
 
     # 5. 廣播最新房間狀態（包含更新後 R 值）
     socketio.emit('room_status', {
