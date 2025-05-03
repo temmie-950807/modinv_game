@@ -335,7 +335,7 @@ socket.on('game_over', function(data) {
             <div id="redirect-message">100秒後返回主頁...</div>
             <div class="game-over-buttons">
                 <button onclick="backToHomepage()">立即返回主頁</button>
-                <a href="/leaderboard" class="leaderboard-button">查看排行榜</a>
+                <button onclick="window.location.href='/leaderboard'" class="leaderboard-button">查看排行榜</button>
             </div>
         `;
     } else {
