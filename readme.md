@@ -13,6 +13,9 @@
    - 在「比速度」模式下，會根據回答的相對時間給予分數
 5. 數道題目結束後，分數高的玩家獲勝
 
+## 其他細節
+每個玩家可以註冊一個帳號，並記錄 Rating，根據遊戲結果計算 Rating 變化。
+
 ## 技術細節
 - 後端：Python + Flask + Socket.IO
 - 前端：HTML + CSS + JavaScript + Socket.IO client
