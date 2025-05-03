@@ -160,10 +160,6 @@ def create_room():
     game_time = request.form.get('game_time', '30')
     question_count = int(request.form.get('question_count', '7'))  # 預設為7題
     
-    # 檢查用戶名長度
-    if len(username) > 10:
-        return jsonify({'error': '用戶名最多10個字符'})
-    
     if not room_id:
         # 創建一個6位數的隨機房間ID
         room_id = ''.join(random.choices('0123456789', k=6))
@@ -200,10 +196,6 @@ def join_existing_room():
     """加入現有遊戲房間"""
     username = session['username']
     room_id = request.form.get('room_id')
-    
-    # 檢查用戶名長度
-    if len(username) > 10:
-        return jsonify({'error': '用戶名最多10個字符'})
     
     if not room_id in rooms:
         return jsonify({'error': '找不到此房間'})
