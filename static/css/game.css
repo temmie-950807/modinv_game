@@ -325,3 +325,28 @@
 .final-scores div {
     margin: 5px 0;
 }
+
+/* 添加到 static/css/game.css 中 */
+
+#cancel-ready-button {
+    background-color: #f44336;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-left: 10px;
+}
+
+#cancel-ready-button:hover {
+    background-color: #d32f2f;
+}
+
+/* 修改 action-buttons 布局以容納額外的按鈕 */
+.action-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 15px;
+}

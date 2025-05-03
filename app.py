@@ -623,5 +623,43 @@ def get_leaderboard():
     
     return jsonify({'players': players})
 
+@socketio.on('player_cancel_ready')
+def handle_player_cancel_ready():
+    username = session.get('username')
+    room_id = session.get('room_id')
+    
+    if not (username and room_id and room_id in rooms):
+        return
+    
+    # 如果遊戲已經開始，則不允許取消準備
+    if rooms[room_id]['game_started']:
+        emit('cancel_ready_response', {
+            'success': False,
+            'message': '遊戲已經開始，無法取消準備'
+        }, to=request.sid)
+        return
+    
+    # 如果玩家之前已準備，則移除準備狀態
+    if username in rooms[room_id]['ready']:
+        del rooms[room_id]['ready'][username]
+        
+        # 通知所有玩家此玩家取消了準備
+        emit('player_ready_status', {
+            'username': username,
+            'ready_count': len(rooms[room_id]['ready']),
+            'total_players': len(rooms[room_id]['players']),
+            'canceled': True  # 添加一個標記表示這是取消準備
+        }, room=room_id)
+        
+        emit('cancel_ready_response', {
+            'success': True
+        }, to=request.sid)
+    else:
+        # 如果玩家之前沒有準備，則返回錯誤
+        emit('cancel_ready_response', {
+            'success': False,
+            'message': '您尚未準備，無法取消準備'
+        }, to=request.sid)
+
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=8000, debug=True)

@@ -583,3 +583,55 @@ window.onload = init;
 window.addEventListener('beforeunload', function() {
     fetch('/leave_room', { method: 'POST' });
 });
+
+// 取消準備函數
+function cancelReady() {
+    socket.emit('player_cancel_ready');
+}
+
+// 處理取消準備的回應
+socket.on('cancel_ready_response', function(data) {
+    if (data.success) {
+        // 取消準備成功
+        document.getElementById('ready-button').disabled = false;
+        document.getElementById('ready-button').textContent = '準備開始';
+        document.getElementById('cancel-ready-button').style.display = 'none';
+    } else {
+        // 取消準備失敗
+        alert(data.message);
+    }
+});
+
+// 修改現有的 markReady 函數
+function markReady() {
+    socket.emit('player_ready');
+    document.getElementById('ready-button').disabled = true;
+    document.getElementById('ready-button').textContent = '已準備';
+    document.getElementById('cancel-ready-button').style.display = 'inline-block';
+}
+
+// 修改 player_ready_status 事件處理
+socket.on('player_ready_status', function(data) {
+    console.log('準備狀態:', data);
+    document.querySelector('.waiting-message').textContent = 
+        `等待玩家準備... (${data.ready_count}/${data.total_players})`;
+        
+    // 更新玩家準備狀態
+    const playerCards = document.querySelectorAll('.player-card');
+    playerCards.forEach(card => {
+        // 獲取玩家卡片中的玩家名稱
+        const playerNameElement = card.querySelector('.player-name');
+        if (playerNameElement) {
+            const playerName = playerNameElement.textContent.replace(' (你)', '');
+            if (playerName === data.username) {
+                if (data.canceled) {
+                    // 如果是取消準備，則移除準備標記
+                    card.classList.remove('ready');
+                } else {
+                    // 否則添加準備標記
+                    card.classList.add('ready');
+                }
+            }
+        }
+    });
+});
