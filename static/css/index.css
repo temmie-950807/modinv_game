@@ -108,3 +108,98 @@ select, input[type="text"] {
     color: #4CAF50;
     margin-right: 10px;
 }
+
+/* 積分模式樣式 */
+.ranked-description {
+    background-color: #f9f9f9;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+.ranked-description ul {
+    padding-left: 20px;
+    margin: 10px 0;
+}
+
+.ranked-description li {
+    margin-bottom: 5px;
+}
+
+.ranked-status {
+    padding: 15px;
+    background-color: #e3f2fd;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.ranked-status.waiting {
+    background-color: #fff3cd;
+}
+
+.ranked-status.matched {
+    background-color: #d4edda;
+}
+
+.ranked-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.ranked-match-info {
+    background-color: #d4edda;
+    padding: 15px;
+    border-radius: 4px;
+    margin: 20px 0;
+    text-align: center;
+}
+
+.ranked-match-info h3 {
+    margin-top: 0;
+    color: #155724;
+}
+
+.ranked-match-info button {
+    margin-top: 15px;
+    background-color: #28a745;
+}
+
+.ranked-match-info button:hover {
+    background-color: #218838;
+}
+
+/* 積分等級文本顏色 */
+.ranked-description .normal {
+    color: black;
+    font-weight: bold;
+}
+
+.ranked-description .specialist {
+    color: #03A89E;
+    font-weight: bold;
+}
+
+.ranked-description .expert {
+    color: blue;
+    font-weight: bold;
+}
+
+.ranked-description .candidate_master {
+    color: #a0a;
+    font-weight: bold;
+}
+
+/* 倒數計時動畫 */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+}
+
+.waiting-animation {
+    animation: pulse 1.5s infinite;
+    display: inline-block;
+}

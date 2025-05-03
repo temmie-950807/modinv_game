@@ -350,3 +350,37 @@
     gap: 10px;
     margin-top: 15px;
 }
+
+/* 積分模式標記 */
+.ranked-badge {
+    display: inline-block;
+    background-color: #e44d26;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
+/* 積分變化顯示樣式 */
+.rating-change {
+    display: inline-block;
+    margin-left: 10px;
+    font-weight: bold;
+}
+
+.rating-change.positive {
+    color: #28a745;
+}
+
+.rating-change.negative {
+    color: #dc3545;
+}
+
+.new-rating {
+    font-size: 0.9em;
+    color: #6c757d;
+    margin-left: 5px;
+}

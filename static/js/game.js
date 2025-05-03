@@ -311,6 +311,8 @@ socket.on('update_scores', function(data) {
 // 修改 socket.on('game_over') 事件處理函數
 // 在 static/js/game.js 中找到此函數並替換
 
+// 修改 socket.on('game_over') 事件處理函數
+// 修改積分模式遊戲結束處理，突出顯示積分變化
 socket.on('game_over', function(data) {
     console.log('遊戲結束:', data);
     gameInProgress = false;
@@ -323,30 +325,63 @@ socket.on('game_over', function(data) {
     gameOverContainer.style.display = 'block';
     document.getElementById('game-screen').style.display = 'none';
     
+    let contentHTML = '';
+    
+    // 檢查是否為積分模式
+    const isRanked = data.is_ranked;
+    const ratingChanges = data.rating_changes || {};
+    const oldRatings = data.old_ratings || {};
+    
     if (data.tie) {
-        gameOverContainer.innerHTML = `
+        contentHTML = `
             <h2>遊戲結束</h2>
             <div class="winner">平局！</div>
             <p>平手玩家: ${data.tied_players.join(', ')}</p>
             <div class="final-scores">
-                ${Object.entries(data.scores).map(([player, score]) => 
-                    `<div>${player}: ${score}分</div>`).join('')}
+                ${Object.entries(data.scores).map(([player, score]) => {
+                    let ratingHTML = '';
+                    if (isRanked) {
+                        const oldRating = oldRatings[player] || 1500;
+                        const ratingChange = ratingChanges[player] || 0;
+                        const newRating = oldRating + ratingChange;
+                        const changeClass = ratingChange > 0 ? 'positive' : (ratingChange < 0 ? 'negative' : '');
+                        const changePrefix = ratingChange > 0 ? '+' : '';
+                        
+                        ratingHTML = `<span class="rating-change ${changeClass}">${changePrefix}${ratingChange}</span>
+                                     <span class="new-rating">(${oldRating} → ${newRating})</span>`;
+                    }
+                    
+                    return `<div>${player}: ${score}分 ${ratingHTML}</div>`;
+                }).join('')}
             </div>
-            <div id="redirect-message">100秒後返回主頁...</div>
+            <div id="redirect-message">${isRanked ? '積分模式' : '普通模式'} - 30秒後返回主頁...</div>
             <div class="game-over-buttons">
                 <button onclick="backToHomepage()">立即返回主頁</button>
                 <button onclick="window.location.href='/leaderboard'" class="leaderboard-button">查看排行榜</button>
             </div>
         `;
     } else {
-        gameOverContainer.innerHTML = `
+        contentHTML = `
             <h2>遊戲結束</h2>
             <div class="winner">贏家: ${data.winner}</div>
             <div class="final-scores">
-                ${Object.entries(data.scores).map(([player, score]) => 
-                    `<div>${player}: ${score}分</div>`).join('')}
+                ${Object.entries(data.scores).map(([player, score]) => {
+                    let ratingHTML = '';
+                    if (isRanked) {
+                        const oldRating = oldRatings[player] || 1500;
+                        const ratingChange = ratingChanges[player] || 0;
+                        const newRating = oldRating + ratingChange;
+                        const changeClass = ratingChange > 0 ? 'positive' : (ratingChange < 0 ? 'negative' : '');
+                        const changePrefix = ratingChange > 0 ? '+' : '';
+                        
+                        ratingHTML = `<span class="rating-change ${changeClass}">${changePrefix}${ratingChange}</span>
+                                     <span class="new-rating">(${oldRating} → ${newRating})</span>`;
+                    }
+                    
+                    return `<div>${player}: ${score}分 ${ratingHTML}</div>`;
+                }).join('')}
             </div>
-            <div id="redirect-message">100秒後返回主頁...</div>
+            <div id="redirect-message">${isRanked ? '積分模式' : '普通模式'} - 30秒後返回主頁...</div>
             <div class="game-over-buttons">
                 <button onclick="backToHomepage()">立即返回主頁</button>
                 <button onclick="window.location.href='/leaderboard'" class="leaderboard-button">查看排行榜</button>
@@ -354,13 +389,15 @@ socket.on('game_over', function(data) {
         `;
     }
     
-    // 設置自動返回主頁的計時器
-    let countdown = 100;
+    gameOverContainer.innerHTML = contentHTML;
+    
+    // 縮短積分模式的自動返回時間
+    let countdown = isRanked ? 30 : 100;
     const redirectMessage = document.getElementById('redirect-message');
     
     redirectTimer = setInterval(function() {
         countdown--;
-        redirectMessage.textContent = `${countdown}秒後返回主頁...`;
+        redirectMessage.textContent = `${isRanked ? '積分模式' : '普通模式'} - ${countdown}秒後返回主頁...`;
         
         if (countdown <= 0) {
             clearInterval(redirectTimer);
@@ -644,8 +681,13 @@ socket.on('not_enough_players', function(data) {
 });
 
 // 修改房間狀態更新處理，添加練習模式信息
+// 在 socket.on('room_status') 事件處理函數中添加自動準備代碼
+// 修改 socket.on('room_status') 事件處理函數
 socket.on('room_status', function(data) {
     console.log('房間狀態:', data);
+    
+    // 更新玩家列表
+    updatePlayerList(data.players, data.scores, data.ready || {}, data.ratings, data.game_started);
     
     // 檢測是否為練習模式
     if (data.game_mode === 'practice') {
@@ -653,5 +695,67 @@ socket.on('room_status', function(data) {
             '練習模式：只需點擊「準備開始」即可開始遊戲';
     }
     
-    updatePlayerList(data.players, data.scores, data.ready || {}, data.ratings, data.game_started);
+    // 檢測是否為自動開始的積分模式
+    if (data.game_mode === 'ranked' || data.is_ranked) {
+        // 顯示積分模式標記
+        if (document.getElementById('ranked-badge')) {
+            document.getElementById('ranked-badge').style.display = 'inline-block';
+        }
+        
+        if (data.auto_start && !data.game_started) {
+            document.querySelector('.waiting-message').innerHTML = 
+                '積分模式：遊戲即將自動開始...';
+            
+            // 自動標記為準備
+            if (data.players.includes(myUsername) && (!data.ready || !data.ready[myUsername])) {
+                console.log('自動準備開始');
+                setTimeout(function() {
+                    markReady();
+                }, 1000);
+            }
+        }
+    }
 });
+
+// 修改初始化函數，處理積分模式
+function init() {
+    // 從URL參數中獲取用戶名和房間ID
+    const params = new URLSearchParams(window.location.search);
+    myUsername = params.get('username') || '';
+    
+    if (myUsername) {
+        localStorage.setItem('username', myUsername);
+    } else {
+        myUsername = localStorage.getItem('username') || '';
+    }
+    
+    // 獲取房間ID和遊戲模式
+    fetchRoomInfo();
+    
+    // 檢查是否為積分模式
+    fetch('/get_room_details')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('請求失敗');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data.error) {
+                // 檢查是否為積分模式
+                if (data.game_mode === 'ranked' || data.is_ranked) {
+                    // 顯示積分賽標記
+                    if (document.getElementById('ranked-badge')) {
+                        document.getElementById('ranked-badge').style.display = 'inline-block';
+                    }
+                    
+                    // 更新提示訊息
+                    document.querySelector('.waiting-message').innerHTML = 
+                        '積分模式：等待雙方連接，遊戲將自動開始...';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('獲取房間信息出錯:', error);
+        });
+}

@@ -14,7 +14,7 @@
     
     <div class="container">
         <div class="room-info">
-            <h3>房間號碼: <span id="room-id"></span></h3>
+            <h3>房間號碼: <span id="room-id"></span> <span id="ranked-badge" class="ranked-badge" style="display: none;">積分賽</span></h3>
             <div id="game-mode-display"></div>
         </div>
         
@@ -119,6 +119,26 @@
                     console.error('獲取房間信息失敗:', error);
                 });
         });
-        </script>
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 檢查是否為積分模式
+            fetch('/get_room_info')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) return;
+                    
+                    // 顯示積分模式標記
+                    if (data.game_mode === 'ranked' || data.is_ranked) {
+                        document.getElementById('ranked-badge').style.display = 'inline-block';
+                    }
+                    
+                    // 其他現有代碼...
+                })
+                .catch(error => {
+                    console.error('獲取房間信息失敗:', error);
+                });
+        });
+    </script>
 </body>
 </html>

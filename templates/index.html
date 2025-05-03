@@ -40,6 +40,7 @@
         <div class="tab">
             <button class="tablinks active" onclick="openTab(event, 'CreateRoom')">創建房間</button>
             <button class="tablinks" onclick="openTab(event, 'JoinRoom')">加入房間</button>
+            <button class="tablinks" onclick="openTab(event, 'RankedMode')">積分模式</button>
         </div>
         
         <div id="CreateRoom" class="tabcontent" style="display: block;">
@@ -57,7 +58,7 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="create-mode">遊戲模式:</label>
+                    <label for="create-mode">遊戲模式 (不影響積分):</label>
                     <select id="create-mode">
                         <option value="first">搶快 (需至少2人，單次僅一人作答)</option>
                         <option value="speed">比速度 (需至少2人，皆可作答，先答得高分)</option>
@@ -86,6 +87,37 @@
             
             <button onclick="createRoom()">創建房間</button>
             <div id="create-error" class="error"></div>
+        </div>
+
+        <div id="RankedMode" class="tabcontent">
+            <div class="ranked-description">
+                <h3>積分模式說明</h3>
+                <p>積分模式會根據您的積分匹配對手，比賽結果將影響您的積分排名。</p>
+                <p>遊戲難度根據雙方積分較低的玩家決定：</p>
+                <ul>
+                    <li><span class="normal">新手、專家 (0-1599):</span> 簡單難度，3題</li>
+                    <li><span class="specialist">精通 (1600-1899):</span> 中等難度，7題</li>
+                    <li><span class="candidate_master">大師 (1900+):</span> 困難難度，15題</li>
+                </ul>
+                <p>所有積分賽均為搶快模式，每題30秒限時。</p>
+            </div>
+            
+            <div class="ranked-status" id="ranked-status">
+                <p>您目前未在積分模式隊列中</p>
+            </div>
+            
+            <div class="ranked-actions">
+                <button id="join-ranked-button" onclick="joinRankedQueue()">加入積分模式隊列</button>
+                <button id="cancel-ranked-button" style="display: none; background-color: #f44336;" onclick="cancelRankedQueue()">取消匹配</button>
+            </div>
+            
+            <div class="ranked-match-info" id="ranked-match-info" style="display: none;">
+                <h3>積分賽匹配成功！</h3>
+                <p>對手: <span id="ranked-opponent"></span></p>
+                <p>難度: <span id="ranked-difficulty"></span></p>
+                <p>題數: <span id="ranked-question-count"></span></p>
+                <button onclick="confirmRankedMatch()">進入比賽</button>
+            </div>
         </div>
         
         <div id="JoinRoom" class="tabcontent">

@@ -28,7 +28,7 @@ DIFFICULTY_BOUNDS = {
     'medium':  100, # a,b < 100
     'hard':    200  # a,b < 200
 }
-GAME_MODES = {'first', 'speed', 'practice'}  # first = 搶快；speed = 比速度；practice = 練習
+GAME_MODES = {'first', 'speed', 'practice', 'ranked'}  # 添加 'ranked' 積分模式
 
 # 遊戲房間數據
 rooms = {}
@@ -284,7 +284,9 @@ def handle_connect():
                 'scores':       rooms[room_id]['scores'],
                 'ready':        rooms[room_id]['ready'],
                 'game_started': rooms[room_id]['game_started'],
-                'ratings':      ratings
+                'ratings':      ratings,
+                'game_mode':    rooms[room_id]['game_mode'],
+                'auto_start':   rooms[room_id].get('auto_start', False)  # 添加自動開始標記
             }, room=room_id)
 
 @socketio.on('disconnect')
@@ -456,28 +458,45 @@ def end_game(room_id):
             'scores': scores
         }
     
-    update_ratings(scores)
+    # 獲取賽前積分
+    old_ratings = {}
+    for u in rooms[room_id]['players']:
+        user = find_account(u)
+        old_ratings[u] = user['rating'] if user else 1500
+    
+    # 只有在積分模式下才更新積分
+    rating_changes = {}
+    if rooms[room_id]['game_mode'] == 'ranked':
+        # 計算並更新積分
+        rating_changes = calculate_rating_changes(scores, old_ratings)
+        update_ratings(scores)
+    
+    # 在 game_over 事件中添加積分變化信息
+    result['is_ranked'] = rooms[room_id]['game_mode'] == 'ranked'
+    result['old_ratings'] = old_ratings
+    result['rating_changes'] = rating_changes
 
-    # 3. 廣播 game_over
+    # 廣播 game_over
     socketio.emit('game_over', result, room=room_id)
 
-    # 4. 準備最新的 ratings dict
+    # 準備最新的 ratings dict
     ratings = {}
     for u in rooms[room_id]['players']:
         user = find_account(u)
         ratings[u] = user['rating'] if user else 1500
 
-    # 5. 廣播最新房間狀態（包含更新後 R 值）
+    # 廣播最新房間狀態
     socketio.emit('room_status', {
         'players':      rooms[room_id]['players'],
         'scores':       rooms[room_id]['scores'],
         'ready':        rooms[room_id]['ready'],
         'game_started': rooms[room_id]['game_started'],
         'ratings':      ratings,
-        'game_mode':    rooms[room_id]['game_mode']  # 添加遊戲模式信息
+        'room_id':      room_id,
+        'game_mode':    rooms[room_id]['game_mode']
     }, room=room_id)
 
-    # 6. 重置房間遊戲狀態（保留玩家列表，但清空準備/問題狀態）
+    # 重置房間遊戲狀態
     rooms[room_id]['game_started']     = False
     rooms[room_id]['ready']            = {}
     rooms[room_id]['current_question'] = None
@@ -635,7 +654,7 @@ def get_room_info():
             'game_time': room['game_time'],
             'question_count': room['question_count'],
             'players_count': len(room['players']),
-            'is_practice': room.get('is_practice', room['game_mode'] == 'practice')
+            'is_ranked': room.get('is_ranked', room['game_mode'] == 'ranked')
         })
     return jsonify({'error': '未找到房間信息'})
 
@@ -701,6 +720,280 @@ def handle_player_cancel_ready():
             'success': False,
             'message': '您尚未準備，無法取消準備'
         }, to=request.sid)
+
+# 創建用於存儲積分模式隊列的字典
+ranked_queue = []  # 僅使用一個簡單的列表儲存等待匹配的玩家
+
+# 添加加入積分模式隊列的路由
+@app.route('/join_ranked_queue', methods=['POST'])
+@login_required
+def join_ranked_queue():
+    """加入積分模式匹配隊列"""
+    username = session.get('username')
+    
+    if not username:
+        return jsonify({'error': '用戶未登入'})
+    
+    # 檢查用戶是否已在隊列中
+    if username in ranked_queue:
+        return jsonify({'status': 'waiting'})
+    
+    # 添加用戶到隊列
+    ranked_queue.append(username)
+    
+    # 如果隊列中至少有兩名玩家，進行匹配
+    if len(ranked_queue) >= 2:
+        # 獲取前兩名玩家
+        player1 = ranked_queue.pop(0)
+        player2 = ranked_queue.pop(0)
+        
+        # 注意：為確保穩定性，這裡再次檢查玩家是否存在
+        if player1 != username and player2 != username:
+            # 這種情況不應該發生，但為了防止錯誤，將當前玩家重新加入隊列
+            ranked_queue.append(username)
+            return jsonify({'status': 'waiting'})
+        
+        # 獲取玩家積分
+        player1_data = find_account(player1)
+        player2_data = find_account(player2)
+        player1_rating = player1_data['rating'] if player1_data else 1500
+        player2_rating = player2_data['rating'] if player2_data else 1500
+        
+        # 根據較低積分的玩家決定難度
+        lower_rating = min(player1_rating, player2_rating)
+        
+        if lower_rating < 1400:  # 新手
+            difficulty = 'easy'
+            question_count = 3
+        elif lower_rating < 1600:  # 專家
+            difficulty = 'easy'
+            question_count = 3
+        elif lower_rating < 1900:  # 精通
+            difficulty = 'medium'
+            question_count = 7
+        else:  # 大師
+            difficulty = 'hard'
+            question_count = 15
+        
+        # 創建房間
+        room_id = ''.join(random.choices('0123456789', k=6))
+        while room_id in rooms:
+            room_id = ''.join(random.choices('0123456789', k=6))
+        
+        # 設置房間屬性
+        rooms[room_id] = {
+            'players': [player1, player2],
+            'ready': {},
+            'scores': {player1: 0, player2: 0},
+            'current_question': None,
+            'question_number': 0,
+            'answers': {},
+            'game_started': False,
+            'question_timer': None,
+            'difficulty': difficulty,
+            'game_mode': 'ranked',
+            'game_time': '30',  # 固定為30秒
+            'question_count': question_count,
+            'correct_order': [],        # 比速度用
+            'first_correct_done': False, # 搶快用
+            'is_ranked': True,  # 標記為積分模式
+            'auto_start': True  # 標記為自動開始
+        }
+        
+        # 設置當前用戶的會話
+        session['room_id'] = room_id
+        
+        # 返回匹配成功及房間信息
+        return jsonify({
+            'status': 'matched',
+            'room_id': room_id,
+            'opponent': player2 if username == player1 else player1,
+            'difficulty': difficulty,
+            'question_count': question_count
+        })
+    
+    # 如果隊列中只有一個玩家，返回等待狀態
+    return jsonify({'status': 'waiting'})
+
+@app.route('/check_match_status', methods=['POST'])
+@login_required
+def check_match_status():
+    """檢查玩家的匹配狀態"""
+    username = session.get('username')
+    
+    if not username:
+        return jsonify({'error': '用戶未登入'})
+    
+    # 檢查用戶是否已經在某個房間中
+    for room_id, room in rooms.items():
+        if username in room['players']:
+            # 找到對手
+            opponent = None
+            for player in room['players']:
+                if player != username:
+                    opponent = player
+                    break
+            
+            # 設置會話
+            session['room_id'] = room_id
+            
+            # 返回房間信息
+            return jsonify({
+                'status': 'matched',
+                'room_id': room_id,
+                'opponent': opponent,
+                'difficulty': room['difficulty'],
+                'question_count': room['question_count']
+            })
+    
+    # 檢查用戶是否在等待隊列中
+    if username in ranked_queue:
+        return jsonify({'status': 'waiting'})
+    
+    # 用戶既不在房間中也不在隊列中
+    return jsonify({'status': 'not_in_queue'})
+
+@app.route('/check_ranked_match', methods=['POST'])
+@login_required
+def check_ranked_match():
+    """檢查是否已匹配到對戰"""
+    username = session['username']
+    
+    # 檢查是否有已分配的房間
+    if f"{username}_room" in ranked_queue:
+        room_id = ranked_queue[f"{username}_room"]
+        
+        # 獲取房間信息
+        room = rooms.get(room_id)
+        if not room:
+            # 房間不存在，清理
+            del ranked_queue[f"{username}_room"]
+            return jsonify({'status': 'not_matched'})
+        
+        # 獲取對手信息
+        opponent = None
+        for player in room['players']:
+            if player != username:
+                opponent = player
+                break
+        
+        # 設置會話
+        session['username'] = username
+        session['room_id'] = room_id
+        
+        # 清理臨時存儲
+        del ranked_queue[f"{username}_room"]
+        
+        return jsonify({
+            'status': 'matched',
+            'room_id': room_id,
+            'opponent': opponent,
+            'difficulty': room['difficulty'],
+            'question_count': room['question_count'],
+            'auto_redirect': True
+        })
+    
+    # 查看是否在等待隊列中
+    if username in ranked_queue['players']:
+        return jsonify({'status': 'waiting'})
+    
+    return jsonify({'status': 'not_matched'})
+
+# 添加確認積分模式匹配的路由
+@app.route('/confirm_ranked_match', methods=['POST'])
+@login_required
+def confirm_ranked_match():
+    """確認積分模式匹配並進入房間"""
+    username = session['username']
+    
+    # 檢查玩家是否已匹配
+    if username not in ranked_queue['matching']:
+        return jsonify({'error': '未找到匹配記錄'})
+    
+    # 獲取房間ID
+    room_id = ranked_queue['matching'][username]
+    
+    # 將玩家從匹配列表中移除
+    del ranked_queue['matching'][username]
+    
+    # 設置會話
+    session['username'] = username
+    session['room_id'] = room_id
+    
+    return jsonify({'room_id': room_id})
+
+# 添加取消積分模式匹配的路由
+@app.route('/cancel_ranked_queue', methods=['POST'])
+@login_required
+def cancel_ranked_queue():
+    """取消積分模式匹配"""
+    username = session.get('username')
+    
+    if not username:
+        return jsonify({'error': '用戶未登入'})
+    
+    # 從隊列中移除用戶
+    if username in ranked_queue:
+        ranked_queue.remove(username)
+    
+    return jsonify({'status': 'canceled'})
+
+# 計算積分變化的函數
+def calculate_rating_changes(scores, old_ratings):
+    """計算每位玩家的積分變化"""
+    players = list(scores.keys())
+    n = len(players)
+    if n < 2:
+        return {}
+    
+    # 檢查是否有平手情況
+    scores_values = list(scores.values())
+    max_score = max(scores_values)
+    winners = [p for p, s in scores.items() if s == max_score]
+    
+    # 如果有多個贏家（平手），返回空字典（不更新積分）
+    if len(winners) > 1:
+        return {player: 0 for player in players}
+    
+    # K 值
+    K = 32
+    
+    # 計算實際得分
+    actual = {}
+    for i in players:
+        si = scores[i]
+        total = 0.0
+        for j in players:
+            if i == j:
+                continue
+            sj = scores[j]
+            if si > sj:
+                total += 1
+            elif si == sj:
+                total += 0.5
+        actual[i] = total
+    
+    # 計算期望得分
+    expected = {}
+    for i in players:
+        Ri = old_ratings[i]
+        esum = 0.0
+        for j in players:
+            if i == j:
+                continue
+            Rj = old_ratings[j]
+            esum += 1 / (1 + 10 ** ((Rj - Ri) / 400))
+        expected[i] = esum
+    
+    # 計算積分變化
+    changes = {}
+    for player in players:
+        S_norm = actual[player] / (n - 1)
+        E_norm = expected[player] / (n - 1)
+        delta = K * (S_norm - E_norm)
+        changes[player] = round(delta)
+    
+    return changes
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=8000, debug=True)
