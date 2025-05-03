@@ -1,9 +1,3 @@
-function updateCharCount(inputId, counterId) {
-    const input = document.getElementById(inputId);
-    const counter = document.getElementById(counterId);
-    counter.textContent = `${input.value.length}/10`;
-}
-
 function openTab(evt, tabName) {
     var i, tabcontent, tablinks;
     tabcontent = document.getElementsByClassName("tabcontent");
@@ -96,9 +90,3 @@ function joinRoom() {
         console.error('Error:', error);
     });
 }
-
-// 初始化字符計數器
-window.onload = function() {
-    updateCharCount('create-username', 'create-char-count');
-    updateCharCount('join-username', 'join-char-count');
-};

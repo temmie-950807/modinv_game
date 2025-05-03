@@ -278,7 +278,9 @@ def join_existing_room():
     """加入現有遊戲房間"""
     username = session['username']
     room_id = request.form.get('room_id')
-    
+
+    print("rooms", rooms)
+
     # 檢查用戶名長度
     if len(username) > 10:
         return jsonify({'error': '用戶名最多10個字符'})
@@ -652,4 +654,4 @@ def get_room_id():
 
 
 if __name__ == '__main__':
-    socketio.run(app, host='127.0.0.1', port=8000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=8000, debug=True)
