@@ -24,9 +24,9 @@ def refresh_permanent_session():
         session.permanent = True
 
 DIFFICULTY_BOUNDS = {
-    'easy':    50,          # a,b < 50
-    'medium':  1000,        # a,b < 1 000
-    'hard':    48763    # a,b < 1 000 000 000
+    'easy':    50,  # a,b < 50
+    'medium':  100, # a,b < 100
+    'hard':    200  # a,b < 200
 }
 GAME_MODES = {'first', 'speed'}          # first = 搶快；speed = 比速度
 
