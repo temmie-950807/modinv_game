@@ -7,6 +7,7 @@ let timeLeft = 100;
 let gameInProgress = false;
 let correctAnswerUsername = null;
 let redirectTimer = null;
+let currentPValue = 0;  // 用於存儲當前題目的模數 p
 
 // 定義一個函數來根據 rating 設定對應的 class
 function getRatingClass(rating) {
@@ -91,6 +92,12 @@ socket.on('new_question', function(data) {
     timeLeft = data.game_time;
     gameMode = data.game_mode;
     correctAnswerUsername = null;
+
+    // 自動聚焦到答題框 - 新增這一行
+    document.getElementById('answer-input').focus();
+    
+    // 將當前的 p 值保存到全局變量，用於答題驗證 - 新增這一行
+    currentPValue = data.p;
     
     // 重置UI
     document.getElementById('opponent-answered').style.display = 'none';
@@ -498,8 +505,15 @@ function submitAnswer() {
     const answerInput = document.getElementById('answer-input');
     const answer = answerInput.value.trim();
     
-    if (!answer) {
-        alert('請輸入答案');
+    if (!answer || !answer.match(/^-?\d+$/)) {
+        alert('請輸入有效的整數');
+        return;
+    }
+
+    // 轉換為數字並驗證範圍 (0 ≤ answer < p) - 新增這部分
+    const numAnswer = parseInt(answer, 10);
+    if (numAnswer < 0 || numAnswer >= currentPValue) {
+        alert(`請輸入 0 到 ${currentPValue-1} 之間的整數`);
         return;
     }
 
