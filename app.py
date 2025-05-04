@@ -6,7 +6,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from functools import wraps
 
 # 引入我們的 SQLite 資料庫函數
-from db_utils import init_db, find_account, register_account, verify_account, update_ratings
+from models.database import init_db, find_account, register_account, verify_account, update_ratings, get_leaderboard_data
 # 引入數學工具函數
 from utils.math_utils import generate_question
 
@@ -644,19 +644,7 @@ def leaderboard():
 @app.route('/api/leaderboard')
 def get_leaderboard():
     """Get the leaderboard data as JSON"""
-    conn = sqlite3.connect('modular_inverse_game.db')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        SELECT username, rating 
-        FROM users 
-        ORDER BY rating DESC
-    """)
-    
-    players = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-    
+    players = get_leaderboard_data()
     return jsonify({'players': players})
 
 @socketio.on('player_cancel_ready')

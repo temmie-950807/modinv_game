@@ -3,7 +3,7 @@ import os
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # 資料庫檔案路徑
-DB_FILE = os.path.join(os.path.dirname(__file__), 'modular_inverse_game.db')
+DB_FILE = os.path.join(os.path.dirname(__file__), '../modular_inverse_game.db')
 
 def init_db():
     """初始化資料庫，建立必要的資料表"""
@@ -177,3 +177,20 @@ def update_ratings(score_dict):
         conn.rollback()
     finally:
         conn.close()
+
+def get_leaderboard_data():
+    """獲取排行榜數據"""
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT username, rating 
+        FROM users 
+        ORDER BY rating DESC
+    """)
+    
+    players = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    
+    return players
