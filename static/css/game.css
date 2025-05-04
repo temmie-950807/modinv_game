@@ -292,19 +292,19 @@
 
 .leaderboard-button {
     display: inline-block;
-    background-color: #607D8B; /* 更改為與主按鈕相同的綠色 */
+    background-color: #607D8B;
     color: white;
     text-decoration: none;
     padding: 10px 15px;
     border-radius: 4px;
     font-size: 16px;
     text-align: center;
-    border: none; /* 確保沒有邊框 */
-    cursor: pointer; /* 滑鼠移上去顯示游標 */
+    border: none;
+    cursor: pointer;
 }
 
 .leaderboard-button:hover {
-    background-color: #607D8B; /* 更改為與主按鈕相同的 hover 效果 */
+    background-color: #607D8B;
 }
 
 /* 確保遊戲結束區塊樣式正確 */
@@ -325,8 +325,6 @@
 .final-scores div {
     margin: 5px 0;
 }
-
-/* 添加到 static/css/game.css 中 */
 
 #cancel-ready-button {
     background-color: #f44336;

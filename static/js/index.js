@@ -21,7 +21,7 @@ function createRoom() {
     formData.append('difficulty', difficulty);
     formData.append('game_mode', mode);
     formData.append('question_count', questionCount);
-    formData.append('game_time', gameTime);  // 將 'game-time' 改為 'game_time'
+    formData.append('game_time', gameTime);
     const roomId = document.getElementById('create-room-id').value.trim();
     const errorElement = document.getElementById('create-error');
     
@@ -29,7 +29,7 @@ function createRoom() {
         formData.append('room_id', roomId);
     }
 
-    // 新增檢查房間 ID 格式
+    // 檢查房間 ID 格式
     const roomIdPattern = /^[a-zA-Z0-9]+$/; // 僅允許大小寫英文與數字
     if (roomId && !roomIdPattern.test(roomId)) {
         errorElement.textContent = "僅能輸入大小寫英文或數字";
@@ -91,7 +91,6 @@ function joinRoom() {
     });
 }
 
-// 在 document.ready 或等效的位置添加以下代碼
 document.addEventListener('DOMContentLoaded', function() {
     // 監聽遊戲模式選擇變化
     const modeSelect = document.getElementById('create-mode');
@@ -248,7 +247,6 @@ function checkMatchStatus() {
 }
 
 // 處理匹配成功
-// 處理匹配成功
 function handleMatchSuccess(data) {
     // 停止輪詢
     if (rankedQueueInterval) {
@@ -289,32 +287,7 @@ function handleMatchSuccess(data) {
     }, 2000);
 }
 
-// 檢查積分模式隊列狀態
-function checkRankedQueue() {
-    if (rankedQueueStatus === 'waiting') {
-        fetch('/join_ranked_queue', {  // 直接使用同一個端點
-            method: 'POST'
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'matched') {
-                handleMatchSuccess(data);
-            } else if (data.status === 'check_again') {
-                // 需要再次檢查
-                setTimeout(function() {
-                    joinRankedQueue();
-                }, 500);
-            }
-            // 如果仍在等待，繼續輪詢
-        })
-        .catch(error => {
-            console.error('檢查積分模式狀態出錯:', error);
-        });
-    }
-}
-
 // 取消積分模式匹配
-// 取消匹配
 function cancelRankedQueue() {
     fetch('/cancel_ranked_queue', {
         method: 'POST'
@@ -364,24 +337,7 @@ function confirmRankedMatch() {
     });
 }
 
-// 頁面離開時清理
-window.addEventListener('beforeunload', function() {
-    if (rankedQueueStatus === 'waiting') {
-        // 嘗試取消匹配
-        fetch('/cancel_ranked_queue', { 
-            method: 'POST',
-            keepalive: true // 確保在頁面關閉時仍能完成請求
-        });
-    }
-    
-    // 停止輪詢
-    if (rankedQueueInterval) {
-        clearInterval(rankedQueueInterval);
-        rankedQueueInterval = null;
-    }
-});
-
-// 添加到 index.js
+// 重置卡住的積分模式匹配
 function resetRankedMatch() {
     fetch('/reset_ranked_match', {
         method: 'POST'
@@ -403,6 +359,23 @@ function resetRankedMatch() {
     });
 }
 
+// 頁面離開時清理
+window.addEventListener('beforeunload', function() {
+    if (rankedQueueStatus === 'waiting') {
+        // 嘗試取消匹配
+        fetch('/cancel_ranked_queue', { 
+            method: 'POST',
+            keepalive: true // 確保在頁面關閉時仍能完成請求
+        });
+    }
+    
+    // 停止輪詢
+    if (rankedQueueInterval) {
+        clearInterval(rankedQueueInterval);
+        rankedQueueInterval = null;
+    }
+});
+
 // 修改頁面載入時的檢查
 document.addEventListener('DOMContentLoaded', function() {
     // 檢查是否有卡住的積分模式
@@ -419,6 +392,4 @@ document.addEventListener('DOMContentLoaded', function() {
     .catch(error => {
         console.error('檢查積分模式狀態出錯:', error);
     });
-    
-    // 其他初始化代碼...
 });

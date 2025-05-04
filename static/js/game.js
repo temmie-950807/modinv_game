@@ -8,6 +8,7 @@ let gameInProgress = false;
 let correctAnswerUsername = null;
 let redirectTimer = null;
 let currentPValue = 0;  // 用於存儲當前題目的模數 p
+let rankedCountdownInterval = null;
 
 // 定義一個函數來根據 rating 設定對應的 class
 function getRatingClass(rating) {
@@ -18,7 +19,6 @@ function getRatingClass(rating) {
 }
 
 // 當連接到服務器時
-// 添加到 socket.on('connect') 事件處理中
 socket.on('connect', function() {
     console.log('已連接到服務器');
     fetchRoomInfo();
@@ -58,9 +58,6 @@ socket.on('ranked_countdown_update', function(data) {
     }
 });
 
-// 在全局變數區域添加
-let rankedCountdownInterval = null;
-
 // 在 window.onbeforeunload 中清理
 window.addEventListener('beforeunload', function() {
     // 清除計時器
@@ -97,6 +94,33 @@ socket.on('user_joined', function(data) {
 socket.on('room_status', function(data) {
     console.log('房間狀態:', data);
     updatePlayerList(data.players, data.scores, data.ready || {}, data.ratings, data.game_started);
+    
+    // 檢測是否為練習模式
+    if (data.game_mode === 'practice') {
+        document.querySelector('.waiting-message').innerHTML = 
+            '練習模式：只需點擊「準備開始」即可開始遊戲';
+    }
+    
+    // 檢測是否為自動開始的積分模式
+    if (data.game_mode === 'ranked' || data.is_ranked) {
+        // 顯示積分模式標記
+        if (document.getElementById('ranked-badge')) {
+            document.getElementById('ranked-badge').style.display = 'inline-block';
+        }
+        
+        if (data.auto_start && !data.game_started) {
+            document.querySelector('.waiting-message').innerHTML = 
+                '積分模式：遊戲即將自動開始...';
+            
+            // 自動標記為準備
+            if (data.players.includes(myUsername) && (!data.ready || !data.ready[myUsername])) {
+                console.log('自動準備開始');
+                setTimeout(function() {
+                    markReady();
+                }, 1000);
+            }
+        }
+    }
 });
 
 // 玩家準備狀態
@@ -105,7 +129,7 @@ socket.on('player_ready_status', function(data) {
     document.querySelector('.waiting-message').textContent = 
         `等待玩家準備... (${data.ready_count}/${data.total_players})`;
         
-    // 更新玩家準備狀態 - 注意：現在需要找到正確的玩家卡片
+    // 更新玩家準備狀態
     const playerCards = document.querySelectorAll('.player-card');
     playerCards.forEach(card => {
         // 獲取玩家卡片中的玩家名稱，方法改變
@@ -113,7 +137,13 @@ socket.on('player_ready_status', function(data) {
         if (playerNameElement) {
             const playerName = playerNameElement.textContent.replace(' (你)', '');
             if (playerName === data.username) {
-                card.classList.add('ready');
+                if (data.canceled) {
+                    // 如果是取消準備，則移除準備標記
+                    card.classList.remove('ready');
+                } else {
+                    // 否則添加準備標記
+                    card.classList.add('ready');
+                }
             }
         }
     });
@@ -142,10 +172,10 @@ socket.on('new_question', function(data) {
     gameMode = data.game_mode;
     correctAnswerUsername = null;
 
-    // 自動聚焦到答題框 - 新增這一行
+    // 自動聚焦到答題框
     document.getElementById('answer-input').focus();
     
-    // 將當前的 p 值保存到全局變量，用於答題驗證 - 新增這一行
+    // 將當前的 p 值保存到全局變量，用於答題驗證
     currentPValue = data.p;
     
     // 重置UI
@@ -215,7 +245,6 @@ socket.on('player_answered', function(data) {
 });
 
 // 時間到
-// 時間到
 socket.on('time_up', function(data) {
     console.log('時間到:', data);
     clearInterval(countdownInterval);
@@ -227,12 +256,6 @@ socket.on('time_up', function(data) {
     
     // 添加 debug 訊息，確認接收到時間到事件
     console.log('已接收時間到事件，等待服務器發送下一題...');
-});
-
-// 添加 debug 日誌，確認收到新問題
-socket.on('new_question', function(data) {
-    console.log('收到新問題:', data);
-    // 其餘現有代碼不變...
 });
 
 // 有人回答正確
@@ -266,7 +289,7 @@ socket.on('someone_answered_correctly', function(data) {
         document.getElementById('submit-button').disabled = true;
     }
     
-    // 在搶快模式下，停止計時器 - 新增的部分
+    // 在搶快模式下，停止計時器
     if (data.stop_timer) {
         clearInterval(countdownInterval);
         document.getElementById('timer').textContent = '有人答對！等待下一題...';
@@ -357,11 +380,6 @@ socket.on('update_scores', function(data) {
 });
 
 // 遊戲結束
-// 修改 socket.on('game_over') 事件處理函數
-// 在 static/js/game.js 中找到此函數並替換
-
-// 修改 socket.on('game_over') 事件處理函數
-// 修改積分模式遊戲結束處理，突出顯示積分變化
 socket.on('game_over', function(data) {
     console.log('遊戲結束:', data);
     gameInProgress = false;
@@ -503,21 +521,41 @@ socket.on('user_left', function(data) {
 
 // 初始化
 function init() {
-    // 從URL參數中獲取用戶名和房間ID
-    const params = new URLSearchParams(window.location.search);
-    myUsername = params.get('username') || '';
-    
-    if (myUsername) {
-        localStorage.setItem('username', myUsername);
-    } else {
-        myUsername = localStorage.getItem('username') || '';
-    }
+    // 從localStorage中獲取用戶名
+    myUsername = localStorage.getItem('username') || '';
     
     // 獲取房間ID
     fetchRoomInfo();
+    
+    // 檢查是否為積分模式
+    fetch('/get_room_info')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('請求失敗');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data.error) {
+                // 檢查是否為積分模式
+                if (data.game_mode === 'ranked' || data.is_ranked) {
+                    // 顯示積分賽標記
+                    if (document.getElementById('ranked-badge')) {
+                        document.getElementById('ranked-badge').style.display = 'inline-block';
+                    }
+                    
+                    // 更新提示訊息
+                    document.querySelector('.waiting-message').innerHTML = 
+                        '積分模式：等待雙方連接，遊戲將自動開始...';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('獲取房間信息出錯:', error);
+        });
 }
 
-// 更新玩家列表 - 完全重寫
+// 更新玩家列表
 function updatePlayerList(players, scores, readyStatus, ratings, gameStarted) {
     const container = document.getElementById('player-list');
     container.innerHTML = '';
@@ -591,6 +629,7 @@ function markReady() {
     socket.emit('player_ready');
     document.getElementById('ready-button').disabled = true;
     document.getElementById('ready-button').textContent = '已準備';
+    document.getElementById('cancel-ready-button').style.display = 'inline-block';
 }
 
 // 提交答案
@@ -605,7 +644,7 @@ function submitAnswer() {
         return;
     }
 
-    // 轉換為數字並驗證範圍 (0 ≤ answer < p) - 新增這部分
+    // 轉換為數字並驗證範圍 (0 ≤ answer < p)
     const numAnswer = parseInt(answer, 10);
     if (numAnswer < 0 || numAnswer >= currentPValue) {
         alert(`請輸入 0 到 ${currentPValue-1} 之間的整數`);
@@ -655,158 +694,9 @@ function backToHomepage() {
     });
 }
 
-// 添加按鍵事件監聽器，按Enter可提交答案
-document.getElementById('answer-input').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        submitAnswer();
-    }
-});
-
-// 初始化頁面
-window.onload = init;
-
-// 添加beforeunload事件監聽器，確保在頁面關閉時清理
-window.addEventListener('beforeunload', function() {
-    fetch('/leave_room', { method: 'POST' });
-});
-
 // 取消準備函數
 function cancelReady() {
     socket.emit('player_cancel_ready');
-}
-
-// 處理取消準備的回應
-socket.on('cancel_ready_response', function(data) {
-    if (data.success) {
-        // 取消準備成功
-        document.getElementById('ready-button').disabled = false;
-        document.getElementById('ready-button').textContent = '準備開始';
-        document.getElementById('cancel-ready-button').style.display = 'none';
-    } else {
-        // 取消準備失敗
-        alert(data.message);
-    }
-});
-
-// 修改現有的 markReady 函數
-function markReady() {
-    socket.emit('player_ready');
-    document.getElementById('ready-button').disabled = true;
-    document.getElementById('ready-button').textContent = '已準備';
-    document.getElementById('cancel-ready-button').style.display = 'inline-block';
-}
-
-// 修改 player_ready_status 事件處理
-socket.on('player_ready_status', function(data) {
-    console.log('準備狀態:', data);
-    document.querySelector('.waiting-message').textContent = 
-        `等待玩家準備... (${data.ready_count}/${data.total_players})`;
-        
-    // 更新玩家準備狀態
-    const playerCards = document.querySelectorAll('.player-card');
-    playerCards.forEach(card => {
-        // 獲取玩家卡片中的玩家名稱
-        const playerNameElement = card.querySelector('.player-name');
-        if (playerNameElement) {
-            const playerName = playerNameElement.textContent.replace(' (你)', '');
-            if (playerName === data.username) {
-                if (data.canceled) {
-                    // 如果是取消準備，則移除準備標記
-                    card.classList.remove('ready');
-                } else {
-                    // 否則添加準備標記
-                    card.classList.add('ready');
-                }
-            }
-        }
-    });
-});
-
-// 添加「人數不足」事件監聽器
-socket.on('not_enough_players', function(data) {
-    console.log('人數不足:', data);
-    document.querySelector('.waiting-message').innerHTML = 
-        `<span style="color: red;">人數不足！${data.game_mode === 'first' ? '搶快' : '比速度'}模式需要至少 ${data.min_players} 名玩家，目前只有 ${data.current_players} 名。請等待更多玩家加入。</span>`;
-});
-
-// 修改房間狀態更新處理，添加練習模式信息
-// 在 socket.on('room_status') 事件處理函數中添加自動準備代碼
-// 修改 socket.on('room_status') 事件處理函數
-socket.on('room_status', function(data) {
-    console.log('房間狀態:', data);
-    
-    // 更新玩家列表
-    updatePlayerList(data.players, data.scores, data.ready || {}, data.ratings, data.game_started);
-    
-    // 檢測是否為練習模式
-    if (data.game_mode === 'practice') {
-        document.querySelector('.waiting-message').innerHTML = 
-            '練習模式：只需點擊「準備開始」即可開始遊戲';
-    }
-    
-    // 檢測是否為自動開始的積分模式
-    if (data.game_mode === 'ranked' || data.is_ranked) {
-        // 顯示積分模式標記
-        if (document.getElementById('ranked-badge')) {
-            document.getElementById('ranked-badge').style.display = 'inline-block';
-        }
-        
-        if (data.auto_start && !data.game_started) {
-            document.querySelector('.waiting-message').innerHTML = 
-                '積分模式：遊戲即將自動開始...';
-            
-            // 自動標記為準備
-            if (data.players.includes(myUsername) && (!data.ready || !data.ready[myUsername])) {
-                console.log('自動準備開始');
-                setTimeout(function() {
-                    markReady();
-                }, 1000);
-            }
-        }
-    }
-});
-
-// 修改初始化函數，處理積分模式
-function init() {
-    // 從URL參數中獲取用戶名和房間ID
-    const params = new URLSearchParams(window.location.search);
-    myUsername = params.get('username') || '';
-    
-    if (myUsername) {
-        localStorage.setItem('username', myUsername);
-    } else {
-        myUsername = localStorage.getItem('username') || '';
-    }
-    
-    // 獲取房間ID和遊戲模式
-    fetchRoomInfo();
-    
-    // 檢查是否為積分模式
-    fetch('/get_room_details')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('請求失敗');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (!data.error) {
-                // 檢查是否為積分模式
-                if (data.game_mode === 'ranked' || data.is_ranked) {
-                    // 顯示積分賽標記
-                    if (document.getElementById('ranked-badge')) {
-                        document.getElementById('ranked-badge').style.display = 'inline-block';
-                    }
-                    
-                    // 更新提示訊息
-                    document.querySelector('.waiting-message').innerHTML = 
-                        '積分模式：等待雙方連接，遊戲將自動開始...';
-                }
-            }
-        })
-        .catch(error => {
-            console.error('獲取房間信息出錯:', error);
-        });
 }
 
 // 添加積分模式全部玩家已連接事件處理
@@ -840,3 +730,33 @@ socket.on('ranked_all_connected', function(data) {
         }, 1000);
     }
 });
+
+// 添加「人數不足」事件監聽器
+socket.on('not_enough_players', function(data) {
+    console.log('人數不足:', data);
+    document.querySelector('.waiting-message').innerHTML = 
+        `<span style="color: red;">人數不足！${data.game_mode === 'first' ? '搶快' : '比速度'}模式需要至少 ${data.min_players} 名玩家，目前只有 ${data.current_players} 名。請等待更多玩家加入。</span>`;
+});
+
+// 處理取消準備的回應
+socket.on('cancel_ready_response', function(data) {
+    if (data.success) {
+        // 取消準備成功
+        document.getElementById('ready-button').disabled = false;
+        document.getElementById('ready-button').textContent = '準備開始';
+        document.getElementById('cancel-ready-button').style.display = 'none';
+    } else {
+        // 取消準備失敗
+        alert(data.message);
+    }
+});
+
+// 添加按鍵事件監聽器，按Enter可提交答案
+document.getElementById('answer-input').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        submitAnswer();
+    }
+});
+
+// 初始化頁面
+window.onload = init;
