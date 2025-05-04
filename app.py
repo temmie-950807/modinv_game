@@ -292,11 +292,9 @@ def handle_disconnect():
 def handle_player_ready():
     username = session.get('username')
     room_id = session.get('room_id')
-    
+
     if not (username and room_id and room_id in rooms):
         return
-    
-    rooms[room_id]['ready'][username] = True
     
     # 檢查是否所有玩家都準備好了
     all_ready = len(rooms[room_id]['ready']) == len(rooms[room_id]['players'])
@@ -998,42 +996,3 @@ def calculate_rating_changes(scores, old_ratings):
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=8000, debug=True)
-
-# 添加到 app.py
-@app.route('/reset_ranked_match', methods=['POST'])
-@login_required
-def reset_ranked_match():
-    """重置卡住的積分模式匹配"""
-    username = session.get('username')
-    
-    if not username:
-        return jsonify({'error': '用戶未登入'})
-    
-    # 檢查用戶是否在某個房間中
-    user_room_id = None
-    for room_id, room in rooms.items():
-        if username in room['players'] and room.get('is_ranked', False):
-            user_room_id = room_id
-            break
-    
-    if not user_room_id:
-        return jsonify({'message': '未找到積分模式匹配'})
-    
-    # 清除用戶在該房間的記錄
-    rooms[user_room_id]['players'].remove(username)
-    if username in rooms[user_room_id]['scores']:
-        del rooms[user_room_id]['scores'][username]
-    if username in rooms[user_room_id]['ready']:
-        del rooms[user_room_id]['ready'][username]
-    
-    # 如果房間空了，刪除房間
-    if len(rooms[user_room_id]['players']) == 0:
-        del rooms[user_room_id]
-    
-    # 同時從積分隊列中移除
-    if username in ranked_queue:
-        ranked_queue.remove(username)
-    
-    session.pop('room_id', None)
-    
-    return jsonify({'success': True, 'message': '已重置積分模式匹配狀態'})

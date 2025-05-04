@@ -23,7 +23,6 @@ def init_db():
     
     conn.commit()
     conn.close()
-    print("資料庫初始化完成")
 
 def find_account(username):
     """查詢使用者帳號"""
