@@ -491,13 +491,16 @@ def end_game(room_id):
     
     # 只有在積分模式下才更新積分
     rating_changes = {}
-    if rooms[room_id]['game_mode'] == 'ranked':
-        # 計算並更新積分
+    if rooms[room_id].get('is_ranked', False):
+        # 計算積分變化
         rating_changes = calculate_rating_changes(scores, old_ratings)
+        
+        # 更新每個玩家的積分
+        # 直接傳入比賽分數，讓 update_ratings 函數自己計算積分變化
         update_ratings(scores)
     
     # 在 game_over 事件中添加積分變化信息
-    result['is_ranked'] = rooms[room_id]['game_mode'] == 'ranked'
+    result['is_ranked'] = rooms[room_id].get('is_ranked', False)
     result['old_ratings'] = old_ratings
     result['rating_changes'] = rating_changes
 
