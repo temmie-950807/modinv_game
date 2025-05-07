@@ -403,7 +403,7 @@ socket.on('game_over', function(data) {
                     return `<div>${player}: ${score}分 ${ratingHTML}</div>`;
                 }).join('')}
             </div>
-            <div id="redirect-message">${isRanked ? '積分模式' : '普通模式'} - 30秒後返回主頁...</div>
+            <div id="redirect-message">${isRanked ? '積分模式' : '普通模式'}：15 秒後返回主頁...</div>
             <div class="game-over-buttons">
                 <button onclick="backToHomepage()">立即返回主頁</button>
                 <button onclick="window.location.href='/leaderboard'" class="leaderboard-button">查看排行榜</button>
@@ -430,7 +430,7 @@ socket.on('game_over', function(data) {
                     return `<div>${player}: ${score}分 ${ratingHTML}</div>`;
                 }).join('')}
             </div>
-            <div id="redirect-message">${isRanked ? '積分模式' : '普通模式'} - 30秒後返回主頁...</div>
+            <div id="redirect-message">${isRanked ? '積分模式' : '普通模式'}：15 秒後返回主頁...</div>
             <div class="game-over-buttons">
                 <button onclick="backToHomepage()">立即返回主頁</button>
                 <button onclick="window.location.href='/leaderboard'" class="leaderboard-button">查看排行榜</button>
@@ -441,12 +441,12 @@ socket.on('game_over', function(data) {
     gameOverContainer.innerHTML = contentHTML;
     
     // 縮短積分模式的自動返回時間
-    let countdown = isRanked ? 30 : 100;
+    let countdown = 15;
     const redirectMessage = document.getElementById('redirect-message');
     
     redirectTimer = setInterval(function() {
         countdown--;
-        redirectMessage.textContent = `${isRanked ? '積分模式' : '普通模式'} - ${countdown}秒後返回主頁...`;
+        redirectMessage.textContent = `${isRanked ? '積分模式' : '普通模式'}：${countdown} 秒後返回主頁...`;
         
         if (countdown <= 0) {
             clearInterval(redirectTimer);
