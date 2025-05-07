@@ -1,9 +1,7 @@
-# app.py
-import os, json, time, random, math, secrets, sqlite3
+import os, time, random, math, sqlite3
 from datetime import timedelta
 from flask import Flask, render_template, request, session, jsonify, redirect, url_for
 from flask_socketio import SocketIO, emit, join_room, leave_room
-from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 
 # 引入我們的 SQLite 資料庫函數
