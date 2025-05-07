@@ -15,11 +15,9 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 # 確保資料庫初始化
 init_db()
 
-# game mode
-@app.before_request
-def refresh_permanent_session():
-    if 'username' in session:
-        session.permanent = True
+# 遊戲相關常數
+VALID_GAME_TIMES = [15, 30, 100]  # 合法的遊戲時間（秒）
+VALID_QUESTION_COUNTS = [3, 7, 15]  # 合法的題目數量
 
 DIFFICULTY_BOUNDS = {
     'easy':    50,  # a,b < 50
@@ -143,7 +141,31 @@ def create_room():
     difficulty = request.form.get('difficulty', 'easy')
     game_mode = request.form.get('game_mode', 'first')
     game_time = request.form.get('game_time', '30')
-    question_count = int(request.form.get('question_count', '7'))
+    question_count = request.form.get('question_count', '7')
+    
+    # 驗證難度
+    if difficulty not in DIFFICULTY_BOUNDS:
+        return jsonify({'error': '無效的難度設定'})
+    
+    # 驗證遊戲模式
+    if game_mode not in GAME_MODES:
+        return jsonify({'error': '無效的遊戲模式'})
+    
+    # 驗證遊戲時間
+    try:
+        game_time = int(game_time)
+        if game_time not in VALID_GAME_TIMES:
+            return jsonify({'error': '無效的遊戲時間'})
+    except ValueError:
+        return jsonify({'error': '無效的遊戲時間'})
+    
+    # 驗證題目數量
+    try:
+        question_count = int(question_count)
+        if question_count not in VALID_QUESTION_COUNTS:
+            return jsonify({'error': '無效的題目數量'})
+    except ValueError:
+        return jsonify({'error': '無效的題目數量'})
     
     if not room_id:
         # 創建一個6位數的隨機房間ID
@@ -169,7 +191,7 @@ def create_room():
         'question_timer': None,
         'difficulty': difficulty,
         'game_mode': game_mode,
-        'game_time': game_time,
+        'game_time': str(game_time),  # 轉換為字串以保持一致性
         'question_count': question_count,
         'correct_order': [],        # 比速度用
         'first_correct_done': False, # 搶快用
@@ -782,7 +804,7 @@ def join_ranked_queue():
             question_count = 3
         elif lower_rating < 1600:  # 專家
             difficulty = 'easy'
-            question_count = 3
+            question_count = 7
         elif lower_rating < 1900:  # 精通
             difficulty = 'medium'
             question_count = 7
