@@ -92,21 +92,8 @@ def get_primes(start, end):
     """獲取指定範圍內的所有質數"""
     return [num for num in range(start, end + 1) if is_prime(num)]
 
-def extended_gcd(a, b):
-    """擴展歐幾里得算法，用於計算模反元素"""
-    if a == 0:
-        return b, 0, 1
-    else:
-        gcd, x, y = extended_gcd(b % a, a)
-        return gcd, y - (b // a) * x, x
-
 def mod_inverse(a, m):
-    """計算模反元素"""
-    if math.gcd(a, m) != 1:
-        return None  # 不存在模反元素
-    else:
-        _, x, _ = extended_gcd(a, m)
-        return (x % m + m) % m  # 確保結果為正數
+    return pow(a, -1, m)
 
 def generate_question(difficulty: str):
     """生成一個有關模反元素的問題"""
